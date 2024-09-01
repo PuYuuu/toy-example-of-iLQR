@@ -22,9 +22,12 @@ WIDTH = 2.0
 WB = 3.6
 SAFETY_BUFFER = 1.5
 
-car_white_image_path = str(pathlib.Path(__file__).parent.parent / "images" / "car_white.png")
-car_cyan_image_path = str(pathlib.Path(__file__).parent.parent / "images" / "car_cyan.png")
-steering_wheel_path = str(pathlib.Path(__file__).parent.parent / "images" / "steering_wheel.png")
+car_white_image_path = str(pathlib.Path(__file__)\
+                           .parent.parent / "images" / "materials" / "car_white.png")
+car_cyan_image_path = str(pathlib.Path(__file__)\
+                          .parent.parent / "images" / "materials" / "car_cyan.png")
+steering_wheel_path = str(pathlib.Path(__file__)\
+                          .parent.parent / "images" / "materials" /"steering_wheel.png")
 car_white_image = plt.imread(car_white_image_path, format = "png")
 car_cyan_image = plt.imread(car_cyan_image_path, format = "png")
 steering_wheel = plt.imread(steering_wheel_path, format = "png")

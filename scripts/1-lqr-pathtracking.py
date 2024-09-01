@@ -26,7 +26,8 @@ TREAD = 0.7
 WB = 2.5
 
 show_animation = True
-steering_wheel_path = str(pathlib.Path(__file__).parent.parent / "images" / "steering_wheel.png")
+steering_wheel_path = str(pathlib.Path(__file__)\
+                          .parent.parent / "images" / "materials" / "steering_wheel.png")
 steering_wheel = plt.imread(steering_wheel_path, format = "png")
 
 def plot_arrow(x: float, y: float, theta: float, L: float, c: str) -> None:
