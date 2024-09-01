@@ -2,6 +2,8 @@
 #ifndef __UTILS_HPP
 #define __UTILS_HPP
 
+#include "cubic_spline.hpp"
+
 #include <Eigen/Core>
 #include <algorithm>
 #include <chrono>
@@ -9,6 +11,40 @@
 #include <numeric>
 #include <string>
 #include <vector>
+
+class ReferenceLine {
+  public:
+    ReferenceLine() = delete;
+    ReferenceLine(std::vector<double> _x, std::vector<double> _y, double width = 0,
+                  double accuracy = 0.1);
+    ~ReferenceLine() {}
+
+    Eigen::Vector3d calc_position(double cur_s);
+
+  public:
+    size_t size;
+    double length;
+    std::vector<double> x;
+    std::vector<double> y;
+    std::vector<double> yaw;
+    std::vector<double> longitude;
+    CubicSpline2D spline;
+    double delta_s;
+    double delta_d;
+};
+
+class RoutingLine {
+public:
+    RoutingLine() {}
+    RoutingLine(std::vector<double> _x, std::vector<double> _y, std::vector<double> _yaw) :
+        x(_x), y(_y), yaw(_yaw) {}
+    ~RoutingLine() {}
+public:
+    size_t size;
+    std::vector<double> x;
+    std::vector<double> y;
+    std::vector<double> yaw;
+};
 
 namespace utils {
 

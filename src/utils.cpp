@@ -1,3 +1,4 @@
+#include "matplotlibcpp.h"
 #include "utils.hpp"
 
 #include <fmt/core.h>
@@ -5,11 +6,37 @@
 
 #include <fstream>
 
-#include "matplotlibcpp.h"
-
 using std::string;
 using namespace Eigen;
 namespace plt = matplotlibcpp;
+
+ReferenceLine::ReferenceLine(std::vector<double> _x, std::vector<double> _y, double width /* = 0*/,
+                             double accuracy /* = 0.1*/) : delta_s(accuracy), delta_d(width) {
+
+    spline = CubicSpline2D(_x, _y);
+    for (double s = 0.0; s <= spline.s.back(); s += delta_s) {
+        Eigen::Vector2d pos = spline.calc_position(s);
+        double lyaw = spline.calc_yaw(s);
+        double lx = pos.x() - width * sin(lyaw);
+        double ly = pos.y() + width * cos(lyaw);
+        x.emplace_back(lx);
+        y.emplace_back(ly);
+        yaw.emplace_back(lyaw);
+        longitude.emplace_back(s);
+    }
+    size = x.size();
+    length = spline.s.back();
+}
+
+Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
+    Eigen::Vector2d pos = spline.calc_position(cur_s);
+    double lyaw = spline.calc_yaw(cur_s);
+    double lx = pos.x() - delta_d * sin(lyaw);
+    double ly = pos.y() + delta_d * cos(lyaw);
+
+    return {lx, ly, lyaw};
+}
+
 
 namespace utils {
 

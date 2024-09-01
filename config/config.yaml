@@ -1,6 +1,8 @@
+max_simulation_time: 15
+delta_t: 0.1
+
 lqr:
   N: 60
-  dt: 0.1
   nx: 4
   nu: 2
   w_pos: 1.0
@@ -29,10 +31,17 @@ vehicle:
   acc_max: 2.0
   acc_min: -2.0
   stl_lim: 1.57
+  d_safe: 1.5
 
 laneline:
   reference:
-    x: [0, 10, 20, 35, 70]
-    y: [1, 0, 5, 6.5, 0]
+    x: [0, 10, 20, 35, 70, 100]
+    y: [1, 0, 5, 6.5, 0, 0]
   border: [-1.8, 1.8, 5.4, 9]
-  center_line: [3.6, 7.2]
+  center_line: [0, 3.6, 7.2]
+
+initial_condition:
+  # [x, y, v, yaw]
+  - [0, 1, 5, 0]  # ego
+  - [10, 0, 5, 0.5236]
+  - [14, 6, 2, 0.5236]
