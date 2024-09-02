@@ -1,6 +1,7 @@
+#include "utils.hpp"
+#include "cilqr_solver.hpp"
 #include "cubic_spline.hpp"
 #include "matplotlibcpp.h"
-#include "utils.hpp"
 
 #include <fmt/core.h>
 #include <getopt.h>
@@ -105,11 +106,16 @@ int main(int argc, char** argv) {
         center_lines.emplace_back(reference);
     }
 
-    Outlook outlook;
-    std::string vehicle_pic_path =
-        "/home/puyu/Codes/toy-example-of-iLQR/images/materials/"
-        "car_cyan.mat.txt";
-    outlook.data = utils::imread(vehicle_pic_path, outlook.rows, outlook.cols, outlook.colors);
+    Outlook outlook_ego;
+    Outlook outlook_agent;
+    std::string vehicle_pic_path_ego =
+        "/home/puyu/Codes/toy-example-of-iLQR/images/materials/car_cyan.mat.txt";
+    std::string vehicle_pic_path_agent =
+        "/home/puyu/Codes/toy-example-of-iLQR/images/materials/car_white.mat.txt";
+    outlook_ego.data =
+        utils::imread(vehicle_pic_path_ego, outlook_ego.rows, outlook_ego.cols, outlook_ego.colors);
+    outlook_agent.data =
+        utils::imread(vehicle_pic_path_agent, outlook_agent.rows, outlook_agent.cols, outlook_agent.colors);
 
     std::vector<RoutingLine> routing_lines(vehicle_num);
 
@@ -143,6 +149,7 @@ int main(int argc, char** argv) {
             routing_lines[idx].yaw.push_back(pos.z());
         }
     }
+
     for (double t = 0.; t < max_simulation_time; t += delta_t) {
         size_t index = t / delta_t;
         plt::cla();
@@ -153,15 +160,19 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        for (size_t idx = 0; idx < vehicle_num; ++idx) {
-            imshow(outlook,
+        imshow(outlook_ego,
+            {routing_lines[0].x[index], routing_lines[0].y[index],
+            routing_lines[0].yaw[index]},
+            {4.5, 2});
+        for (size_t idx = 1; idx < vehicle_num; ++idx) {
+            imshow(outlook_agent,
                    {routing_lines[idx].x[index], routing_lines[idx].y[index],
                     routing_lines[idx].yaw[index]},
                    {4.5, 2});
         }
 
-        plt::xlim(routing_lines[0].x[index] - 10, routing_lines[0].x[index] + 20);
-        plt::ylim(routing_lines[0].y[index] - 10, routing_lines[0].y[index] + 10);
+        plt::xlim(routing_lines[0].x[index] - 15, routing_lines[0].x[index] + 25);
+        plt::ylim(routing_lines[0].y[index] - 5, routing_lines[0].y[index] + 15);
         plt::pause(delta_t);
     }
 

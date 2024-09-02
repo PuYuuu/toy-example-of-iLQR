@@ -39,6 +39,8 @@ public:
     RoutingLine(std::vector<double> _x, std::vector<double> _y, std::vector<double> _yaw) :
         x(_x), y(_y), yaw(_yaw) {}
     ~RoutingLine() {}
+
+    RoutingLine subset(size_t start, size_t length);
 public:
     size_t size;
     std::vector<double> x;

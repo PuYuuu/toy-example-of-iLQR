@@ -28,6 +28,21 @@ ReferenceLine::ReferenceLine(std::vector<double> _x, std::vector<double> _y, dou
     length = spline.s.back();
 }
 
+RoutingLine RoutingLine::subset(size_t start, size_t length) {
+    size = std::min(x.size(), std::min(y.size(), yaw.size()));
+    if (start >= size || (start + length) > size || length <= 0) {
+        throw std::out_of_range("RoutingLine::subset args is out of range.");
+    }
+
+    RoutingLine sub_routing;
+    sub_routing.x = std::vector(this->x.begin() + start, this->x.begin() + start + length);
+    sub_routing.y = std::vector(this->y.begin() + start, this->y.begin() + start + length);
+    sub_routing.yaw = std::vector(this->yaw.begin() + start, this->yaw.begin() + start + length);
+    sub_routing.size = length;
+
+    return sub_routing;
+}
+
 Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
     Eigen::Vector2d pos = spline.calc_position(cur_s);
     double lyaw = spline.calc_yaw(cur_s);
