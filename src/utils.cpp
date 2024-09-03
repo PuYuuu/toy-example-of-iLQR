@@ -11,8 +11,8 @@ using namespace Eigen;
 namespace plt = matplotlibcpp;
 
 ReferenceLine::ReferenceLine(std::vector<double> _x, std::vector<double> _y, double width /* = 0*/,
-                             double accuracy /* = 0.1*/) : delta_s(accuracy), delta_d(width) {
-
+                             double accuracy /* = 0.1*/)
+    : delta_s(accuracy), delta_d(width) {
     spline = CubicSpline2D(_x, _y);
     for (double s = 0.0; s <= spline.s.back(); s += delta_s) {
         Eigen::Vector2d pos = spline.calc_position(s);
@@ -52,7 +52,6 @@ Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
     return {lx, ly, lyaw};
 }
 
-
 namespace utils {
 
 std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors) {
@@ -85,6 +84,21 @@ std::vector<float> imread(std::string filename, int& rows, int& cols, int& color
 
     // directly return will trigger RVO (Return Value Optimization)
     return std::move(image);
+}
+
+Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
+                                    double dt, double wheelbase) {
+    double beta = atan(tan(cur_u[1] / 2));
+    Eigen::Vector4d next_x;
+
+    // clang-format off
+    next_x << cur_x[0] + cur_x[2] * cos(beta + cur_x[3]) * dt,
+              cur_x[1] + cur_x[2] * sin(beta + cur_x[3]) * dt,
+              cur_x[2] + cur_u[0] * dt,
+              cur_x[3] + 2 * cur_x[2] * sin(beta) * dt / wheelbase;
+    // clang-format on
+
+    return next_x;
 }
 
 }  // namespace utils

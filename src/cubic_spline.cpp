@@ -1,3 +1,5 @@
+#include <Eigen/Dense>
+
 #include "cubic_spline.hpp"
 #include "utils.hpp"
 

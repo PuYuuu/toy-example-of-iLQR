@@ -2,7 +2,7 @@
 #ifndef __CUBIC_SPLINE_HPP
 #define __CUBIC_SPLINE_HPP
 
-#include <Eigen/Eigen>
+#include <Eigen/Core>
 #include <vector>
 
 class CubicSpline {

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
+#include <cmath>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -34,14 +35,15 @@ class ReferenceLine {
 };
 
 class RoutingLine {
-public:
+  public:
     RoutingLine() {}
-    RoutingLine(std::vector<double> _x, std::vector<double> _y, std::vector<double> _yaw) :
-        x(_x), y(_y), yaw(_yaw) {}
+    RoutingLine(std::vector<double> _x, std::vector<double> _y, std::vector<double> _yaw)
+        : x(_x), y(_y), yaw(_yaw) {}
     ~RoutingLine() {}
 
     RoutingLine subset(size_t start, size_t length);
-public:
+
+  public:
     size_t size;
     std::vector<double> x;
     std::vector<double> y;
@@ -191,6 +193,8 @@ class TicToc {
 };
 
 std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
+Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
+                                    double dt, double wheelbase);
 
 }  // namespace utils
 

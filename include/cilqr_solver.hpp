@@ -6,7 +6,7 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <Eigen/Eigen>
+#include <Eigen/Core>
 #include <tuple>
 #include <vector>
 
@@ -16,13 +16,21 @@ class CILQRSolver {
     CILQRSolver(const YAML::Node& cfg);
     ~CILQRSolver() {}
 
-    std::tuple<Eigen::Vector2d, std::vector<Eigen::Vector4d>> sovle(
-        Eigen::Vector4d x0, const ReferenceLine& ref_waypoints, double ref_velo,
-        const std::vector<RoutingLine>& obs_preds);
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> sovle(const Eigen::Vector4d& x0,
+                                                         const ReferenceLine& ref_waypoints,
+                                                         double ref_velo,
+                                                         const std::vector<RoutingLine>& obs_preds);
 
   private:
-    // planning-related settings
-    uint32_t N;  // horizon length
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> get_init_traj(const Eigen::Vector4d& x0);
+    Eigen::MatrixX4d const_velo_prediction(const Eigen::Vector4d& x0, size_t steps, double dt,
+                                           double wheelbase);
+    double get_total_cost(const Eigen::MatrixX2d& init_u, const Eigen::MatrixX4d& init_x,
+                          const ReferenceLine& ref_waypoints, double ref_velo,
+                          const std::vector<RoutingLine>& obs_preds);
+
+        // planning-related settings
+        uint32_t N;  // horizon length
     double dt;
     uint32_t nx;
     uint32_t nu;

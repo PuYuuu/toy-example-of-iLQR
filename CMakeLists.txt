@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(MotionPlanning)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++17 -O2")
+set(CMAKE_CXX_FLAGS "-std=c++17 -O3")
 
 add_library(matplotlib_cpp INTERFACE)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
