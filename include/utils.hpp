@@ -23,8 +23,8 @@ class ReferenceLine {
     Eigen::Vector3d calc_position(double cur_s);
 
   public:
-    size_t size;
-    double length;
+    size_t size() const { return x.size(); }
+    double length() const { return spline.s.back(); }
     std::vector<double> x;
     std::vector<double> y;
     std::vector<double> yaw;

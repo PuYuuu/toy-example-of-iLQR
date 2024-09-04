@@ -24,8 +24,6 @@ ReferenceLine::ReferenceLine(std::vector<double> _x, std::vector<double> _y, dou
         yaw.emplace_back(lyaw);
         longitude.emplace_back(s);
     }
-    size = x.size();
-    length = spline.s.back();
 }
 
 RoutingLine RoutingLine::subset(size_t start, size_t length) {

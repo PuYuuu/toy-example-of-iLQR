@@ -7,11 +7,11 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     N = planner_params["N"].as<uint32_t>();
     nx = planner_params["nx"].as<uint32_t>();
     nu = planner_params["nu"].as<uint32_t>();
-    state_weight = Eigen::Matrix4d::Zero(nx, nx);
+    state_weight = Eigen::Matrix4d::Zero();
     state_weight(0, 0) = planner_params["w_pos"].as<double>();
     state_weight(1, 1) = planner_params["w_pos"].as<double>();
     state_weight(2, 2) = planner_params["w_vel"].as<double>();
-    ctrl_weight = Eigen::Matrix4d::Zero(nu, nu);
+    ctrl_weight = Eigen::Matrix2d::Zero();
     ctrl_weight(0, 0) = planner_params["w_acc"].as<double>();
     ctrl_weight(1, 1) = planner_params["w_stl"].as<double>();
     exp_q1 = planner_params["exp_q1"].as<double>();
@@ -72,6 +72,76 @@ Eigen::MatrixX4d CILQRSolver::const_velo_prediction(const Eigen::Vector4d& x0, s
     return predicted_states;
 }
 
-double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& init_u, const Eigen::MatrixX4d& init_x,
+double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x,
                                    const ReferenceLine& ref_waypoints, double ref_velo,
-                                   const std::vector<RoutingLine>& obs_preds) {}
+                                   const std::vector<RoutingLine>& obs_preds) {
+    size_t num_obstacles = obs_preds.size();
+    //  part 1: costs included in the prime objective
+    Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
+    Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
+    Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
+    Eigen::MatrixX4d ref_states(N + 1, 4);
+    ref_states << ref_exact_points, ref_velocitys, ref_states;
+
+    double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).sum();
+    double ctrl_energy = (u * ctrl_weight * u.transpose()).sum();
+    double J_prime = states_devt + ctrl_energy;
+
+    // part 2: costs of the barrier function terms
+    double J_barrier = 0.;
+    for (size_t k = 1; k < N + 1; ++k) {
+        Eigen::Vector2d u_k = u.row(k - 1);
+        Eigen::Vector4d x_k = x.row(k);
+
+        // acceleration constraints
+        double acc_up_constr = get_bound_constr(u_k[0], acc_max, BoundType::UPPER);
+        double acc_lo_constr = get_bound_constr(u_k[0], acc_min, BoundType::LOWER);
+
+        // steering angle constraints
+        double stl_up_constr = get_bound_constr(u_k[1], stl_lim, BoundType::UPPER);
+        double stl_lo_constr = get_bound_constr(u_k[1], -stl_lim, BoundType::LOWER);
+
+        // velocity constraints
+        double velo_up_constr = get_bound_constr(x_k[2], velo_max, BoundType::UPPER);
+        double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
+    }
+    double J_total = J_prime + J_barrier;
+
+    return J_total;
+}
+
+Eigen::MatrixX2d CILQRSolver::get_ref_exact_points(const Eigen::MatrixX4d& x,
+                                                   const ReferenceLine& ref_waypoints) {
+    uint16_t x_shape = x.rows();
+    uint16_t start_index = 0;
+    Eigen::MatrixX2d ref_exact_points = Eigen::MatrixX2d::Zero(x_shape, 2);
+
+    for (uint16_t i = 0; i < x_shape; ++i) {
+        uint16_t min_idx = -1;
+        double min_distance = 0;
+        for (size_t j = start_index; j < ref_waypoints.size(); ++j) {
+            double cur_distance = hypot(x(i, 0) - ref_waypoints.x[j], x(i, 1) - ref_waypoints.y[j]);
+            if (min_idx < 0 || cur_distance < min_distance) {
+                min_idx = j;
+                min_distance = cur_distance;
+            } else {
+                break;
+            }
+        }
+        ref_exact_points(i, 0) = ref_waypoints.x[min_idx];
+        ref_exact_points(i, 1) = ref_waypoints.y[min_idx];
+        start_index = min_idx;
+    }
+
+    return ref_exact_points;
+}
+
+double CILQRSolver::get_bound_constr(double variable, double bound, BoundType bound_type) {
+    if (bound_type == BoundType::UPPER) {
+        return variable - bound;
+    } else if (bound_type == BoundType::LOWER) {
+        return bound - variable;
+    }
+
+    return 0;
+}

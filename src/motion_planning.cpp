@@ -1,7 +1,7 @@
-#include "utils.hpp"
 #include "cilqr_solver.hpp"
 #include "cubic_spline.hpp"
 #include "matplotlibcpp.h"
+#include "utils.hpp"
 
 #include <fmt/core.h>
 #include <getopt.h>
@@ -114,17 +114,17 @@ int main(int argc, char** argv) {
         "/home/puyu/Codes/toy-example-of-iLQR/images/materials/car_white.mat.txt";
     outlook_ego.data =
         utils::imread(vehicle_pic_path_ego, outlook_ego.rows, outlook_ego.cols, outlook_ego.colors);
-    outlook_agent.data =
-        utils::imread(vehicle_pic_path_agent, outlook_agent.rows, outlook_agent.cols, outlook_agent.colors);
+    outlook_agent.data = utils::imread(vehicle_pic_path_agent, outlook_agent.rows,
+                                       outlook_agent.cols, outlook_agent.colors);
 
     std::vector<RoutingLine> routing_lines(vehicle_num);
 
     for (size_t idx = 0; idx < vehicle_num; ++idx) {
         size_t line_num = 0;
-        double start_s = center_lines[line_num].length;
+        double start_s = center_lines[line_num].length();
         double min_diff = -1.0;
         for (size_t l = 0; l < center_lines.size(); ++l) {
-            for (size_t i = 1; i < center_lines[l].size; ++i) {
+            for (size_t i = 1; i < center_lines[l].size(); ++i) {
                 double last_diff = hypot(center_lines[l].x[i - 1] - initial_conditions[idx][0],
                                          center_lines[l].y[i - 1] - initial_conditions[idx][1]);
                 double cur_diff = hypot(center_lines[l].x[i] - initial_conditions[idx][0],
@@ -161,9 +161,8 @@ int main(int argc, char** argv) {
         }
 
         imshow(outlook_ego,
-            {routing_lines[0].x[index], routing_lines[0].y[index],
-            routing_lines[0].yaw[index]},
-            {4.5, 2});
+               {routing_lines[0].x[index], routing_lines[0].y[index], routing_lines[0].yaw[index]},
+               {4.5, 2});
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
             imshow(outlook_agent,
                    {routing_lines[idx].x[index], routing_lines[idx].y[index],
