@@ -41,6 +41,14 @@ RoutingLine RoutingLine::subset(size_t start, size_t length) {
     return sub_routing;
 }
 
+Eigen::Vector3d RoutingLine::operator[](size_t index) const {
+    if (index >= x.size() || index >= y.size() || index >= yaw.size()) {
+        throw std::out_of_range("Index out of range");
+    }
+
+    return Eigen::Vector3d{x[index], y[index], yaw[index]};
+}
+
 Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
     Eigen::Vector2d pos = spline.calc_position(cur_s);
     double lyaw = spline.calc_yaw(cur_s);
@@ -97,6 +105,39 @@ Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::V
     // clang-format on
 
     return next_x;
+}
+
+Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase) {
+    double yaw = state[3];
+    Eigen::Vector2d half_whba_vec = 0.5 * wheelbase * Eigen::Vector2d{cos(yaw), sin(yaw)};
+    Eigen::Vector2d front_pnt = state.head(2) + half_whba_vec;
+    Eigen::Vector2d rear_pnt = state.head(2) - half_whba_vec;
+    Eigen::Matrix2d vstack_front_and_rear_pnt;
+    vstack_front_and_rear_pnt << front_pnt, rear_pnt;
+
+    return vstack_front_and_rear_pnt;
+}
+
+Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
+                                              const Eigen::Vector3d& obs_attr) {
+    double a = 0.5 * obs_attr[1] + obs_attr[2] + ego_pnt_radius;
+    double b = 0.5 * obs_attr[0] + obs_attr[2] + ego_pnt_radius;
+
+    return Eigen::Vector2d{a, b};
+}
+
+double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,
+                               const Eigen::Vector2d& ellipse_ab) {
+    Eigen::Vector2d elp_center = obs_state.head(2);
+    double theta = obs_state[2];
+    Eigen::Vector2d diff = pnt - elp_center;
+    Eigen::Matrix2d rotation_matrix;
+    rotation_matrix << cos(theta), sin(theta), -sin(theta), cos(theta);
+    Eigen::Vector2d pnt_std = rotation_matrix * diff;
+    double result = 1 - (pow(pnt_std[0], 2) / pow(ellipse_ab[0], 2) +
+                         pow(pnt_std[1], 2) / pow(ellipse_ab[1], 2));
+
+    return result;
 }
 
 }  // namespace utils

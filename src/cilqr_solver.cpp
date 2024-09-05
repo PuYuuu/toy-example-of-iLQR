@@ -36,6 +36,9 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     acc_max = ego_veh_params["a_max"].as<double>();
     acc_min = ego_veh_params["a_min"].as<double>();
     stl_lim = ego_veh_params["stl_lim"].as<double>();
+    double d_safe = ego_veh_params["d_safe"].as<double>();
+
+    obs_attr = {width, length, d_safe};
 }
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
@@ -44,6 +47,11 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
     Eigen::MatrixX2d u;
     Eigen::MatrixX4d x;
     std::tie(u, x) = get_init_traj(x0);
+    double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds);
+    double lamb = init_lamb;
+
+    for (uint32_t itr = 0; itr < max_iter; ++itr) {
+    }
 
     return std::make_tuple(u, x);
 }
@@ -104,6 +112,22 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
         // velocity constraints
         double velo_up_constr = get_bound_constr(x_k[2], velo_max, BoundType::UPPER);
         double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
+
+        double J_barrier_k = exp_barrier(acc_up_constr, exp_q1, exp_q2) +
+                             exp_barrier(acc_lo_constr, exp_q1, exp_q2) +
+                             exp_barrier(stl_up_constr, exp_q1, exp_q2) +
+                             exp_barrier(stl_lo_constr, exp_q1, exp_q2) +
+                             exp_barrier(velo_up_constr, exp_q1, exp_q2) +
+                             exp_barrier(velo_lo_constr, exp_q1, exp_q2);
+
+        // obstacle avoidance constraints
+        for (size_t j = 0; j < num_obstacles; ++j) {
+            Eigen::Vector3d obs_j_pred_k = obs_preds[j][k];
+            Eigen::Vector2d obs_j_constr = get_obstacle_avoidance_constr(x_k, obs_j_pred_k);
+            J_barrier_k += exp_barrier(obs_j_constr[0], exp_q1, exp_q2);
+            J_barrier_k += exp_barrier(obs_j_constr[1], exp_q1, exp_q2);
+        }
+        J_barrier += J_barrier_k;
     }
     double J_total = J_prime + J_barrier;
 
@@ -145,3 +169,33 @@ double CILQRSolver::get_bound_constr(double variable, double bound, BoundType bo
 
     return 0;
 }
+
+Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,
+                                                           const Eigen::Vector3d& obs_state) {
+    Eigen::Matrix2d ego_front_and_rear =
+        utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
+    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
+    double front_safety_margin =
+        utils::ellipsoid_safety_margin(ego_front_and_rear.col(0), obs_state, ellipse_ab);
+    double rear_safety_margin =
+        utils::ellipsoid_safety_margin(ego_front_and_rear.col(1), obs_state, ellipse_ab);
+
+    return Eigen::Vector2d{front_safety_margin, rear_safety_margin};
+}
+
+std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
+    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
+    const ReferenceLine& ref_waypoints, double ref_velo,
+    const std::vector<RoutingLine>& obs_preds) {
+    Eigen::MatrixX2d d;
+    MatrixX8d K;
+    double expc_redu;
+    std::tie(d, K, expc_redu) = backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds);
+
+    return std::make_tuple(d, K, expc_redu);
+}
+
+std::tuple<Eigen::MatrixX2d, MatrixX8d, double> CILQRSolver::backward_pass(
+    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
+    const ReferenceLine& ref_waypoints, double ref_velo,
+    const std::vector<RoutingLine>& obs_preds) {}

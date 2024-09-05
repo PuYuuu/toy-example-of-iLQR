@@ -42,6 +42,7 @@ class RoutingLine {
     ~RoutingLine() {}
 
     RoutingLine subset(size_t start, size_t length);
+    Eigen::Vector3d operator[](size_t index) const;
 
   public:
     size_t size;
@@ -195,6 +196,11 @@ class TicToc {
 std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase);
+Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase);
+Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
+                                              const Eigen::Vector3d& obs_attr);
+double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,
+                               const Eigen::Vector2d& ellipse_ab);
 
 }  // namespace utils
 
