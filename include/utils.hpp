@@ -197,10 +197,14 @@ std::vector<float> imread(std::string filename, int& rows, int& cols, int& color
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase);
 Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase);
+Eigen::Matrix4d get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr);
 double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,
                                const Eigen::Vector2d& ellipse_ab);
+Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
+                                                    const Eigen::Vector3d& obs_state,
+                                                    const Eigen::Vector2d& ellipse_ab);
 
 }  // namespace utils
 

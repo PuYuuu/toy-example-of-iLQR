@@ -118,6 +118,26 @@ Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state,
     return vstack_front_and_rear_pnt;
 }
 
+Eigen::Matrix4d get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
+    double half_whba = 0.5 * wheelbase;
+
+    // front point over (center) state:
+    //      [[x_fr -> x_c, x_fr -> y_c, x_fr -> v, x_fr -> yaw]
+    //       [y_fr -> x_c, y_fr -> y_c, y_fr -> v, y_fr -> yaw]]
+    Eigen::Matrix<double, 4, 2> front_pnt_over_state;
+    front_pnt_over_state << 1, 0, 0, 1, 0, 0, half_whba * (-sin(yaw)), half_whba * cos(yaw);
+
+    // rear point over (center) state:
+    //      <similarly...>
+    Eigen::Matrix<double, 4, 2> rear_pnt_over_state;
+    rear_pnt_over_state << 1, 0, 0, 1, 0, 0, -half_whba * (-sin(yaw)), -half_whba * cos(yaw);
+
+    Eigen::Matrix4d front_and_rear_over_state;
+    front_and_rear_over_state << front_pnt_over_state, rear_pnt_over_state;
+
+    return front_and_rear_over_state;
+}
+
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr) {
     double a = 0.5 * obs_attr[1] + obs_attr[2] + ego_pnt_radius;
@@ -138,6 +158,38 @@ double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d
                          pow(pnt_std[1], 2) / pow(ellipse_ab[1], 2));
 
     return result;
+}
+
+Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
+                                                    const Eigen::Vector3d& obs_state,
+                                                    const Eigen::Vector2d& ellipse_ab) {
+    Eigen::Vector2d elp_center = obs_state.head(2);
+    Eigen::Vector2d diff = pnt - elp_center;
+    double theta = obs_state[2];
+    Eigen::Matrix2d rotation_matrix;
+    rotation_matrix << cos(theta), sin(theta), -sin(theta), cos(theta);
+    Eigen::Vector2d pnt_std = rotation_matrix * diff;
+
+    // (1) constraint over standard point vec.:
+    //      [c -> x_std, c -> y_std]
+    Eigen::Vector2d res_over_pnt_std = {-2 * pnt_std[0] / pow(ellipse_ab[0], 2),
+                                        -2 * pnt_std[1] / pow(ellipse_ab[1], 2)};
+
+    // (2) standard point vec. over difference vec.:
+    //      [[x_std -> x_diff, x_std -> y_diff]
+    //       [y_std -> x_diff, y_std -> y_diff]]
+    Eigen::Matrix2d pnt_std_over_diff = rotation_matrix.transpose();
+
+    // (3) difference vec. over original point vec.:
+    //      [[x_diff -> x, x_diff -> y]
+    //       [y_diff -> x, y_diff -> y]]
+    Eigen::Matrix2d diff_over_pnt = Eigen::Matrix2d::Identity();
+
+    // chain (1)(2)(3) together:
+    //      [c -> x, c -> y]
+    Eigen::Vector2d res_over_pnt = diff_over_pnt * pnt_std_over_diff * res_over_pnt_std;
+
+    return res_over_pnt;
 }
 
 }  // namespace utils

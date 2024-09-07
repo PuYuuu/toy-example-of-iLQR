@@ -12,8 +12,6 @@
 
 enum class BoundType { UPPER, LOWER };
 
-typedef Eigen::Matrix<double, -1, 8> MatrixX8d;
-
 class CILQRSolver {
   public:
     CILQRSolver() = delete;
@@ -41,12 +39,21 @@ class CILQRSolver {
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
-    std::tuple<Eigen::MatrixX2d, MatrixX8d, double> backward_pass(
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> backward_pass(
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
+    void get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d& u,
+                                                 const Eigen::MatrixX4d& x,
+                                                 const ReferenceLine& ref_waypoints,
+                                                 double ref_velo,
+                                                 const std::vector<RoutingLine>& obs_preds);
 
     double exp_barrier(double c, double q1, double q2) { return q1 * exp(q2 * c); }
+    Eigen::MatrixXd exp_barrier_derivative_and_Hessian(double c, Eigen::MatrixXd c_dot, double q1,
+                                                       double q2);
+    Eigen::Matrix4Xd get_obstacle_avoidance_constr_derivatives(const Eigen::Vector4d& ego_state,
+                                                               const Eigen::Vector3d& obs_state);
 
     // planning-related settings
     uint32_t N;  // horizon length
@@ -79,6 +86,11 @@ class CILQRSolver {
     double stl_lim;
 
     Eigen::Vector3d obs_attr;
+    Eigen::MatrixX4d l_x;
+    Eigen::MatrixX2d l_u;
+    Eigen::MatrixX4d l_xx;
+    Eigen::MatrixX2d l_xu;
+    Eigen::MatrixX2d l_uu;
 };
 
 #endif

@@ -39,6 +39,7 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     double d_safe = ego_veh_params["d_safe"].as<double>();
 
     obs_attr = {width, length, d_safe};
+    l_xu.setZero(N * nx, nu);
 }
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
@@ -188,14 +189,182 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
     const ReferenceLine& ref_waypoints, double ref_velo,
     const std::vector<RoutingLine>& obs_preds) {
     Eigen::MatrixX2d d;
-    MatrixX8d K;
+    Eigen::MatrixX4d K;
     double expc_redu;
     std::tie(d, K, expc_redu) = backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds);
 
     return std::make_tuple(d, K, expc_redu);
 }
 
-std::tuple<Eigen::MatrixX2d, MatrixX8d, double> CILQRSolver::backward_pass(
+std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::backward_pass(
     const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
     const ReferenceLine& ref_waypoints, double ref_velo,
-    const std::vector<RoutingLine>& obs_preds) {}
+    const std::vector<RoutingLine>& obs_preds) {
+    //
+}
+
+void CILQRSolver::get_total_cost_derivatives_and_Hessians(
+    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, const ReferenceLine& ref_waypoints,
+    double ref_velo, const std::vector<RoutingLine>& obs_preds) {
+    l_x.setZero(N, nx);
+    l_u.setZero(N, nu);
+    l_xx.setZero(N * nx, nx);
+    l_uu.setZero(N * nu, nu);
+    // l_xu.setZero(N * nx, nu);
+
+    size_t num_obstacles = obs_preds.size();
+    Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
+    Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
+    Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
+    Eigen::MatrixX4d ref_states(N + 1, 4);
+    ref_states << ref_exact_points, ref_velocitys, ref_states;
+
+    // part 1: cost derivatives due to the prime objective
+    Eigen::MatrixX2d l_u_prime = 2 * (u * ctrl_weight);
+    Eigen::MatrixX2d l_uu_prime = (2 * ctrl_weight).replicate(N, 1);
+    Eigen::MatrixX4d l_x_prime = 2 * (x - ref_states) * state_weight;
+    Eigen::MatrixX4d l_xx_prime = (2 * state_weight).replicate(N + 1, 1);
+
+    // part 2: cost derivatives due to the barrier terms
+    Eigen::MatrixX2d l_u_barrier = Eigen::MatrixX2d::Zero(N, nu);
+    Eigen::MatrixX2d l_uu_barrier = Eigen::MatrixX2d::Zero(N * nu, nu);
+    Eigen::MatrixX4d l_x_barrier = Eigen::MatrixX4d::Zero(N + 1, nx);
+    Eigen::MatrixX4d l_xx_barrier = Eigen::MatrixX4d::Zero((N + 1) * nx, nx);
+
+    for (uint32_t k = 0; k < N + 1; ++k) {
+        // control: only N steps
+        if (k < N) {
+            Eigen::Vector2d u_k = u.row(k);
+
+            // acceleration constraints derivatives and Hessians
+            double acc_up_constr = get_bound_constr(u_k[0], acc_max, BoundType::UPPER);
+            Eigen::Vector2d acc_up_constr_over_u = {1.0, 0.0};
+            Eigen::MatrixXd acc_up_barrier = exp_barrier_derivative_and_Hessian(
+                acc_up_constr, acc_up_constr_over_u, exp_q1, exp_q2);
+            Eigen::Vector2d acc_up_barrier_over_u = acc_up_barrier.col(0);
+            Eigen::Matrix2d acc_up_barrier_over_uu = acc_up_barrier.block(0, 1, nu, nu);
+
+            double acc_lo_constr = get_bound_constr(u_k[0], acc_min, BoundType::LOWER);
+            Eigen::Vector2d acc_lo_constr_over_u = {-1, 0};
+            Eigen::MatrixXd acc_lo_barrier = exp_barrier_derivative_and_Hessian(
+                acc_lo_constr, acc_lo_constr_over_u, exp_q1, exp_q2);
+            Eigen::Vector2d acc_lo_barrier_over_u = acc_lo_barrier.col(0);
+            Eigen::Matrix2d acc_lo_barrier_over_uu = acc_lo_barrier.block(0, 1, nu, nu);
+
+            // steering angle constraints derivatives and Hessians
+            double stl_up_constr = get_bound_constr(u_k[1], stl_lim, BoundType::UPPER);
+            Eigen::Vector2d stl_up_constr_over_u = {0.0, 1.0};
+            Eigen::MatrixXd stl_up_barrier = exp_barrier_derivative_and_Hessian(
+                stl_up_constr, stl_up_constr_over_u, exp_q1, exp_q2);
+            Eigen::Vector2d stl_up_barrier_over_u = stl_up_barrier.col(0);
+            Eigen::Matrix2d stl_up_barrier_over_uu = stl_up_barrier.block(0, 1, nu, nu);
+
+            double stl_lo_constr = get_bound_constr(u_k[0], acc_min, BoundType::LOWER);
+            Eigen::Vector2d stl_lo_constr_over_u = {0, -1.0};
+            Eigen::MatrixXd stl_lo_barrier = exp_barrier_derivative_and_Hessian(
+                stl_lo_constr, stl_lo_constr_over_u, exp_q1, exp_q2);
+            Eigen::Vector2d stl_lo_barrier_over_u = stl_lo_barrier.col(0);
+            Eigen::Matrix2d stl_lo_barrier_over_uu = stl_lo_barrier.block(0, 1, nu, nu);
+
+            // fill the ctrl-related spaces
+            l_u_barrier.row(k) =
+                acc_up_barrier_over_u.transpose() + acc_lo_barrier_over_u.transpose() +
+                stl_up_barrier_over_u.transpose() + stl_lo_barrier_over_u.transpose();
+            l_uu_barrier.block(nu * k, 0, nu, nu) = acc_up_barrier_over_uu +
+                                                    acc_lo_barrier_over_uu +
+                                                    stl_up_barrier_over_uu + stl_lo_barrier_over_uu;
+        }
+
+        // state: (N + 1) steps
+        Eigen::Vector4d x_k = x.row(k);
+
+        // velocity constraints derivatives and Hessians
+        double velo_up_constr = get_bound_constr(x_k[2], velo_max, BoundType::UPPER);
+        Eigen::Vector4d velo_up_constr_over_x = {0, 0, 1, 0};
+        Eigen::MatrixXd velo_up_barrier = exp_barrier_derivative_and_Hessian(
+            velo_up_constr, velo_up_constr_over_x, exp_q1, exp_q2);
+        Eigen::Vector4d velo_up_barrier_over_x = velo_up_barrier.col(0);
+        Eigen::Matrix4d velo_up_barrier_over_xx = velo_up_barrier.block(0, 1, nx, nx);
+
+        double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
+        Eigen::Vector4d velo_lo_constr_over_x = {0, 0, -1, 0};
+        Eigen::MatrixXd velo_lo_barrier = exp_barrier_derivative_and_Hessian(
+            velo_lo_constr, velo_lo_constr_over_x, exp_q1, exp_q2);
+        Eigen::Vector4d velo_lo_barrier_over_x = velo_up_barrier.col(0);
+        Eigen::Matrix4d velo_lo_barrier_over_xx = velo_up_barrier.block(0, 1, nx, nx);
+
+        l_x_barrier.row(k) = velo_up_constr_over_x + velo_lo_barrier_over_x;
+        l_xx_barrier.block(nx * k, 0, nx, nx) = velo_up_barrier_over_xx + velo_lo_barrier_over_xx;
+
+        // obstacle avoidance constraints derivatives and Hessians
+        for (size_t j = 0; j < num_obstacles; ++j) {
+            Eigen::Vector3d obs_j_pred_k = obs_preds[j][k];
+            Eigen::Vector2d obs_j_constr = get_obstacle_avoidance_constr(x_k, obs_j_pred_k);
+            Eigen::Matrix4Xd obs_j_front_and_rear_constr_over_x =
+                get_obstacle_avoidance_constr_derivatives(x_k, obs_j_pred_k);
+            Eigen::Matrix<double, 4, 2> obs_j_front_constr_over_x =
+                obs_j_front_and_rear_constr_over_x.block(0, 0, 4, 2);
+            Eigen::Matrix<double, 4, 2> obs_j_rear_constr_over_x =
+                obs_j_front_and_rear_constr_over_x.block(0, 2, 4, 2);
+
+            Eigen::MatrixXd obs_j_front_barrier = exp_barrier_derivative_and_Hessian(
+                obs_j_constr[0], obs_j_front_constr_over_x, exp_q1, exp_q2);
+            Eigen::Vector4d obs_j_front_barrier_over_x = obs_j_front_barrier.col(0);
+            Eigen::Matrix4d obs_j_front_barrier_over_xx = obs_j_front_barrier.block(0, 1, nx, nx);
+            Eigen::MatrixXd obs_j_rear_barrier = exp_barrier_derivative_and_Hessian(
+                obs_j_constr[1], obs_j_rear_constr_over_x, exp_q1, exp_q2);
+            Eigen::Vector4d obs_j_rear_barrier_over_x = obs_j_rear_barrier.col(0);
+            Eigen::Matrix4d obs_j_rear_barrier_over_xx = obs_j_rear_barrier.block(0, 1, nx, nx);
+
+            l_x_barrier.row(k) += (obs_j_front_barrier_over_x + obs_j_rear_barrier_over_x);
+            l_xx_barrier.block(nx * k, 0, nx, nx) +=
+                (obs_j_front_barrier_over_xx + obs_j_rear_barrier_over_xx);
+        }
+    }
+
+    l_u = l_u_prime + l_u_barrier;
+    l_uu = l_uu_prime + l_uu_barrier;
+    l_x = l_x_prime + l_x_barrier;
+    l_xx = l_xx_prime + l_xx_barrier;
+}
+
+Eigen::MatrixXd CILQRSolver::exp_barrier_derivative_and_Hessian(double c, Eigen::MatrixXd c_dot,
+                                                                double q1, double q2) {
+    double b = exp_barrier(c, q1, q2);
+    Eigen::VectorXd b_dot = q2 * b * c_dot;
+    Eigen::MatrixXd b_ddot = pow(q2, 2) * b * (c_dot.transpose() * c_dot);
+
+    Eigen::MatrixXd derivative_and_Hessian;
+    derivative_and_Hessian << b_dot, b_ddot;
+
+    return derivative_and_Hessian;
+}
+
+Eigen::Matrix4Xd CILQRSolver::get_obstacle_avoidance_constr_derivatives(
+    const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state) {
+    Eigen::Matrix2d ego_front_and_rear =
+        utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
+    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
+
+    // safety margin over ego front and rear points
+    Eigen::Vector2d front_safety_margin_over_ego_front = utils::ellipsoid_safety_margin_derivatives(
+        ego_front_and_rear.col(0), obs_state, ellipse_ab);
+    Eigen::Vector2d rear_safety_margin_over_ego_rear = utils::ellipsoid_safety_margin_derivatives(
+        ego_front_and_rear.col(1), obs_state, ellipse_ab);
+
+    // ego front and rear points over state
+    Eigen::Matrix4d ego_front_and_rear_over_state =
+        utils::get_vehicle_front_and_rear_center_derivatives(ego_state[3], wheelbase);
+
+    // chain together
+    Eigen::Vector4d front_safety_margin_over_state =
+        ego_front_and_rear_over_state.block(0, 0, nx, 2) * front_safety_margin_over_ego_front;
+    Eigen::Vector4d rear_safety_margin_over_state =
+        ego_front_and_rear_over_state.block(0, 2, nx, 2) * rear_safety_margin_over_ego_rear;
+
+    Eigen::Matrix4Xd front_and_rear_safety_margin_over_state;
+    front_and_rear_safety_margin_over_state << front_safety_margin_over_state,
+        rear_safety_margin_over_state;
+
+    return front_and_rear_safety_margin_over_state;
+}
