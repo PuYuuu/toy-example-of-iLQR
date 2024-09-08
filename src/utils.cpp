@@ -107,6 +107,51 @@ Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::V
     return next_x;
 }
 
+std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
+    const Eigen::MatrixX4d& x, const Eigen::MatrixX2d& u, double dt, double wheelbase,
+    uint32_t steps) {
+    Eigen::VectorXd N_velo = x.col(2).head(steps);
+    Eigen::VectorXd N_yaw = x.col(3).head(steps);
+    Eigen::VectorXd N_beta = (u.col(1) / 2).array().tan().atan();
+    Eigen::VectorXd N_beta_over_stl =
+        0.5 * (1 + u.col(1).array().tan().square()) / (1 + 0.25 * u.col(1).array().tan().square());
+
+    //  f(state, ctrl) over state of t_0 to t_N
+    //  df_dx.shape: (N, 4, 4)
+    //  For t_k, df_dx[k] is organized by:
+    //      [[x_k+1     -> x_k, x_k+1     -> y_k, x_k+1     -> v_k, x_k+1     -> theta_k]
+    //       [y_k+1     -> x_k, y_k+1     -> y_k, y_k+1     -> v_k, y_k+1     -> theta_k]
+    //       [v_k+1     -> x_k, v_k+1     -> y_k, v_k+1     -> v_k, v_k+1     -> theta_k]
+    //       [theta_k+1 -> x_k, theta_k+1 -> y_k, theta_k+1 -> v_k, theta_k+1 -> theta_k]]
+    Eigen::MatrixX4d df_dx(steps * 4, 4);
+    //  f(state, ctrl) over ctrl of t_0 to t_N
+    //  df_du.shape: (N, 4, 2)
+    //  For t_k, df_du[k] is organized by:
+    //      [[x_k+1     -> a_k, x_k+1     -> delta_k]
+    //       [y_k+1     -> a_k, y_k+1     -> delta_k]
+    //       [v_k+1     -> a_k, v_k+1     -> delta_k]
+    //       [theta_k+1 -> a_k, theta_k+1 -> delta_k]]
+    Eigen::MatrixX2d df_du(steps * 4, 2);
+
+    for (uint32_t i = 0; i < steps; ++i) {
+        df_dx.block(i * 4, 0, 4, 4).setIdentity();
+        df_dx(i * 4, 2) = cos(N_beta[i] + N_yaw[i]) * dt;
+        df_dx(i * 4, 3) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt;
+        df_dx(i * 4 + 1, 2) = sin(N_beta[i] + N_yaw[i]) * dt;
+        df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt;
+        df_dx(i * 4 + 3, 2) = 2 * sin(N_beta[i]) * dt / wheelbase;
+
+        df_du.block(i * 4, 0, 2, 2).setZero();
+        df_du(i * 4, 1) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt * N_beta_over_stl[i];
+        df_du(i * 4 + 1, 1) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt * N_beta_over_stl[i];
+        df_du(i * 4 + 2, 0) = dt;
+        df_du(i * 4 + 3, 1) =
+            (2 * N_velo[i] * dt / wheelbase) * cos(N_beta[i]) * N_beta_over_stl[i];
+    }
+
+    return std::make_tuple(df_dx, df_du);
+}
+
 Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase) {
     double yaw = state[3];
     Eigen::Vector2d half_whba_vec = 0.5 * wheelbase * Eigen::Vector2d{cos(yaw), sin(yaw)};

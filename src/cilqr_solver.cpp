@@ -200,7 +200,8 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::backward_pas
     const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
     const ReferenceLine& ref_waypoints, double ref_velo,
     const std::vector<RoutingLine>& obs_preds) {
-    //
+    get_total_cost_derivatives_and_Hessians(u, x, ref_waypoints, ref_velo, obs_preds);
+    auto [df_dx, df_du] = utils::get_kinematic_model_derivatives(x, u, dt, wheelbase, N);
 }
 
 void CILQRSolver::get_total_cost_derivatives_and_Hessians(
