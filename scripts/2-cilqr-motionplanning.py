@@ -321,7 +321,7 @@ class CILQR:
 
             # expected cost reduction
             delt_V += 0.5 * d[:, i].T @ Q_uu @ d[:, i] + d[:, i].T @ Q_u
-        print(f"d shape: {d.shape}, K shape: {K.shape}")
+
         return d, K, delt_V
 
 

@@ -43,6 +43,11 @@ class CILQRSolver {
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> forward_pass(const Eigen::MatrixX2d& u,
+                                                                const Eigen::MatrixX4d& x,
+                                                                const Eigen::MatrixX2d& d,
+                                                                const Eigen::MatrixX4d& K,
+                                                                double alpha);
     void get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d& u,
                                                  const Eigen::MatrixX4d& x,
                                                  const ReferenceLine& ref_waypoints,
@@ -90,6 +95,7 @@ class CILQRSolver {
     Eigen::MatrixX2d l_u;
     Eigen::MatrixX4d l_xx;
     Eigen::MatrixX2d l_xu;
+    Eigen::MatrixX4d l_ux;
     Eigen::MatrixX2d l_uu;
 };
 

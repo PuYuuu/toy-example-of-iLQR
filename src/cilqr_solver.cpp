@@ -1,5 +1,7 @@
 #include "cilqr_solver.hpp"
 
+#include <Eigen/Dense>
+
 CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     dt = cfg["delta_t"].as<double>();
 
@@ -40,6 +42,7 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
 
     obs_attr = {width, length, d_safe};
     l_xu.setZero(N * nx, nu);
+    l_ux.setZero(N * nu, nx);
 }
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
@@ -202,6 +205,75 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::backward_pas
     const std::vector<RoutingLine>& obs_preds) {
     get_total_cost_derivatives_and_Hessians(u, x, ref_waypoints, ref_velo, obs_preds);
     auto [df_dx, df_du] = utils::get_kinematic_model_derivatives(x, u, dt, wheelbase, N);
+
+    double delta_V = 0;
+    Eigen::MatrixX2d d = Eigen::MatrixX2d::Zero(N, nu);
+    Eigen::MatrixX4d K = Eigen::MatrixX4d::Zero(N * nu, nx);
+
+    Eigen::Vector4d V_x = l_x.bottomRows(1).transpose();
+    Eigen::Matrix4d V_xx = l_xx.bottomRows(4);
+
+    Eigen::Matrix4d regu_I = lamb * Eigen::Matrix4d::Identity();
+
+    for (int i = N - 1; i >= 0; --i) {
+        // Q_terms
+        Eigen::Vector4d Q_x =
+            l_x.row(i).transpose() + df_dx.block(nx * i, 0, nx, nx).transpose() * V_x;
+        Eigen::Vector2d Q_u =
+            l_u.row(i).transpose() + df_du.block(nx * i, 0, nx, nu).transpose() * V_x;
+        Eigen::Matrix4d Q_xx =
+            l_xx.block(nx * i, 0, nx, nx) +
+            df_dx.block(nx * i, 0, nx, nx).transpose() * V_xx * df_dx.block(nx * i, 0, nx, nx);
+        Eigen::Matrix2d Q_uu =
+            l_uu.block(nu * i, 0, nu, nu) +
+            df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_du.block(nx * i, 0, nx, nu);
+        Eigen::Matrix<double, 2, 4> Q_ux =
+            l_ux.block(nu * i, 0, nu, nx) +
+            df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_dx.block(nx * i, 0, nx, nx);
+
+        // gains
+        Eigen::Matrix<double, 2, 4> df_du_regu =
+            df_du.block(nx * i, 0, nx, nu).transpose() * regu_I;
+        Eigen::Matrix<double, 2, 4> Q_ux_regu = Q_ux + df_du_regu * df_dx.block(nx * i, 0, nx, nx);
+        Eigen::Matrix2d Q_uu_regu = Q_uu + df_du_regu * df_du.block(nx * i, 0, nx, nu);
+        Eigen::Matrix2d Q_uu_inv = Q_uu_regu.inverse();
+
+        d.row(i) = -Q_uu_inv * Q_u;
+        K.block(nu * i, 0, nu, nx) = -Q_uu_inv * Q_ux_regu;
+
+        // Update value function for next time step
+        V_x = Q_x + K.block(nu * i, 0, nu, nx).transpose() * Q_uu * d.row(i).transpose() +
+              K.block(nu * i, 0, nu, nx).transpose() * Q_u +
+              Q_ux.transpose() * d.row(i).transpose();
+        V_xx = Q_xx + K.block(nu * i, 0, nu, nx).transpose() * Q_uu * K.block(nu * i, 0, nu, nx) +
+               K.block(nu * i, 0, nu, nx).transpose() * Q_ux +
+               Q_ux.transpose() * K.block(nu * i, 0, nu, nx);
+
+        // expected cost reduction
+        delta_V += (0.5 * d.row(i) * Q_uu * d.row(i).transpose() + d.row(i) * Q_u)(0, 0);
+    }
+
+    return std::tuple(d, K, delta_V);
+}
+
+std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::forward_pass(const Eigen::MatrixX2d& u,
+                                                                         const Eigen::MatrixX4d& x,
+                                                                         const Eigen::MatrixX2d& d,
+                                                                         const Eigen::MatrixX4d& K,
+                                                                         double alpha) {
+    Eigen::MatrixX2d new_u = Eigen::MatrixX2d::Zero(N, nu);
+    Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N, nx);
+    new_x.row(0) = x.row(0);
+
+    for (uint32_t i = 0; i < N; ++i) {
+        Eigen::Vector2d new_u_i = u.row(i).transpose() +
+                                  K.block(nu * i, 0, 2, 4) * (new_x.row(i) - x.row(i)).transpose() +
+                                  alpha * d.row(i).transpose();
+        new_u.row(i) = new_u_i;
+        new_x.row(i + 1) = utils::kinematic_propagate(new_x.row(i), new_u_i, dt, wheelbase);
+    }
+
+    return std::tuple(new_u, new_x);
 }
 
 void CILQRSolver::get_total_cost_derivatives_and_Hessians(
@@ -212,6 +284,7 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
     l_xx.setZero(N * nx, nx);
     l_uu.setZero(N * nu, nu);
     // l_xu.setZero(N * nx, nu);
+    // l_ux.setZero(N * nu, nx);
 
     size_t num_obstacles = obs_preds.size();
     Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
