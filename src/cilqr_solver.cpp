@@ -1,6 +1,10 @@
 #include "cilqr_solver.hpp"
 
+#include <fmt/core.h>
+#include <spdlog/spdlog.h>
+
 #include <Eigen/Dense>
+#include <limits>
 
 CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     dt = cfg["delta_t"].as<double>();
@@ -55,6 +59,26 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
     double lamb = init_lamb;
 
     for (uint32_t itr = 0; itr < max_iter; ++itr) {
+        auto [new_u, new_x, new_J] = iter_step(u, x, J, lamb, ref_waypoints, ref_velo, obs_preds);
+        if (new_J < J) {
+            x = new_x;
+            u = new_u;
+            double last_J = J;
+            J = new_J;
+            if (abs(J - last_J) < tol) {
+                spdlog::info(fmt::format("Tolerance condition satisfied. {}", itr));
+                break;
+            }
+
+            lamb *= lamb_decay;
+        } else {
+            lamb *= lamb_amplify;
+
+            if (lamb > max_lamb) {
+                spdlog::info("Regularization parameter reached the maximum.");
+                break;
+            }
+        }
     }
 
     return std::make_tuple(u, x);
@@ -188,15 +212,25 @@ Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d
 }
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
-    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
+    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
     const ReferenceLine& ref_waypoints, double ref_velo,
     const std::vector<RoutingLine>& obs_preds) {
-    Eigen::MatrixX2d d;
-    Eigen::MatrixX4d K;
-    double expc_redu;
-    std::tie(d, K, expc_redu) = backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds);
+    auto [d, K, expc_redu] = backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds);
 
-    return std::make_tuple(d, K, expc_redu);
+    Eigen::MatrixX2d new_u = Eigen::MatrixX2d::Zero(N, nu);
+    Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N + 1, nx);
+    double new_J = std::numeric_limits<double>::max();
+
+    for (double alpha : alpha_options) {
+        std::tie(new_u, new_x) = forward_pass(u, x, d, K, alpha);
+        new_J = get_total_cost(new_u, new_x, ref_waypoints, ref_velo, obs_preds);
+
+        if (new_J < cost) {
+            break;
+        }
+    }
+
+    return std::make_tuple(new_u, new_x, new_J);
 }
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::backward_pass(

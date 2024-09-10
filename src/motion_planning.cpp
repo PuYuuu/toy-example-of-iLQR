@@ -9,65 +9,12 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cmath>
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <thread>
 #include <unordered_map>
 
 namespace plt = matplotlibcpp;
-
-struct Outlook {
-    int rows;
-    int cols;
-    int colors;
-    std::vector<float> data;
-};
-
-void imshow(const Outlook& out, std::vector<double> state, std::vector<double> para) {
-    PyObject* imshow_func = nullptr;
-    if (imshow_func == nullptr) {
-        Py_Initialize();
-        std::filesystem::path source_file_path(__FILE__);
-        std::filesystem::path project_path = source_file_path.parent_path().parent_path();
-        std::string script_path = project_path / "scripts" / "utils";
-        PyRun_SimpleString("import sys");
-        PyRun_SimpleString(fmt::format("sys.path.append('{}')", script_path).c_str());
-
-        PyObject* py_name = PyUnicode_DecodeFSDefault("imshow");
-        PyObject* py_module = PyImport_Import(py_name);
-        Py_DECREF(py_name);
-        if (py_module != nullptr) {
-            imshow_func = PyObject_GetAttrString(py_module, "imshow");
-        }
-        if (imshow_func == nullptr || !PyCallable_Check(imshow_func)) {
-            spdlog::error(
-                "py.imshow call failed and the vehicle drawing will only "
-                "support linestyle");
-            imshow_func = nullptr;
-        }
-    }
-
-    std::vector<double> state_list{0, 0, 0};
-
-    PyObject* vehicle_state = matplotlibcpp::detail::get_array(state);
-    PyObject* vehicle_para = matplotlibcpp::detail::get_array(para);
-    npy_intp dims[3] = {out.rows, out.cols, out.colors};
-
-    const float* imptr = &(out.data[0]);
-
-    PyObject* args = PyTuple_New(3);
-    PyTuple_SetItem(args, 0, PyArray_SimpleNewFromData(3, dims, NPY_FLOAT, (void*)imptr));
-    PyTuple_SetItem(args, 1, vehicle_state);
-    PyTuple_SetItem(args, 2, vehicle_para);
-
-    PyObject* ret = PyObject_CallObject(imshow_func, args);
-
-    Py_DECREF(args);
-    if (ret) {
-        Py_DECREF(ret);
-    }
-}
 
 int main(int argc, char** argv) {
     YAML::Node config;
@@ -93,6 +40,9 @@ int main(int argc, char** argv) {
         config["laneline"]["center_line"].as<std::vector<double>>();
     std::vector<std::vector<double>> initial_conditions =
         config["initial_condition"].as<std::vector<std::vector<double>>>();
+    double vehicle_width = config["vehicle"]["width"].as<double>();
+    double vehicle_length = config["vehicle"]["length"].as<double>();
+    Eigen::Vector2d vehicle_para = {vehicle_length, vehicle_width};
     size_t vehicle_num = initial_conditions.size();
 
     std::vector<ReferenceLine> borders;
@@ -160,14 +110,9 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        imshow(outlook_ego,
-               {routing_lines[0].x[index], routing_lines[0].y[index], routing_lines[0].yaw[index]},
-               {4.5, 2});
+        utils::imshow(outlook_ego, routing_lines[0][index], vehicle_para);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
-            imshow(outlook_agent,
-                   {routing_lines[idx].x[index], routing_lines[idx].y[index],
-                    routing_lines[idx].yaw[index]},
-                   {4.5, 2});
+            utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);
         }
 
         plt::xlim(routing_lines[0].x[index] - 15, routing_lines[0].x[index] + 25);

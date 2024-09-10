@@ -92,6 +92,58 @@ std::vector<float> imread(std::string filename, int& rows, int& cols, int& color
     return std::move(image);
 }
 
+void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para) {
+    std::vector<double> state_vector = {state[0], state[1], state[2]};
+    std::vector<double> para_vector =  {para[0], para[1]};
+
+    imshow(out, state_vector, para_vector);
+}
+
+void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para) {
+    static PyObject* imshow_func = nullptr;
+    if (imshow_func == nullptr) {
+        Py_Initialize();
+        std::filesystem::path source_file_path(__FILE__);
+        std::filesystem::path project_path = source_file_path.parent_path().parent_path();
+        std::string script_path = project_path / "scripts" / "utils";
+        PyRun_SimpleString("import sys");
+        PyRun_SimpleString(fmt::format("sys.path.append('{}')", script_path).c_str());
+
+        PyObject* py_name = PyUnicode_DecodeFSDefault("imshow");
+        PyObject* py_module = PyImport_Import(py_name);
+        Py_DECREF(py_name);
+        if (py_module != nullptr) {
+            imshow_func = PyObject_GetAttrString(py_module, "imshow");
+        }
+        if (imshow_func == nullptr || !PyCallable_Check(imshow_func)) {
+            spdlog::error(
+                "py.imshow call failed and the vehicle drawing will only "
+                "support linestyle");
+            imshow_func = nullptr;
+        }
+    }
+
+    std::vector<double> state_list{0, 0, 0};
+
+    PyObject* vehicle_state = matplotlibcpp::detail::get_array(state);
+    PyObject* vehicle_para = matplotlibcpp::detail::get_array(para);
+    npy_intp dims[3] = {out.rows, out.cols, out.colors};
+
+    const float* imptr = &(out.data[0]);
+
+    PyObject* args = PyTuple_New(3);
+    PyTuple_SetItem(args, 0, PyArray_SimpleNewFromData(3, dims, NPY_FLOAT, (void*)imptr));
+    PyTuple_SetItem(args, 1, vehicle_state);
+    PyTuple_SetItem(args, 2, vehicle_para);
+
+    PyObject* ret = PyObject_CallObject(imshow_func, args);
+
+    Py_DECREF(args);
+    if (ret) {
+        Py_DECREF(ret);
+    }
+}
+
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase) {
     double beta = atan(tan(cur_u[1] / 2));

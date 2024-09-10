@@ -36,7 +36,7 @@ class CILQRSolver {
     Eigen::Vector2d get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,
                                                   const Eigen::Vector3d& obs_state);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> iter_step(
-        const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
+        const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> backward_pass(

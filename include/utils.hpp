@@ -12,6 +12,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 class ReferenceLine {
   public:
@@ -49,6 +50,13 @@ class RoutingLine {
     std::vector<double> x;
     std::vector<double> y;
     std::vector<double> yaw;
+};
+
+struct Outlook {
+    int rows;
+    int cols;
+    int colors;
+    std::vector<float> data;
 };
 
 namespace utils {
@@ -194,6 +202,9 @@ class TicToc {
 };
 
 std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
+void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para);
+void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);
+
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase);
 std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
