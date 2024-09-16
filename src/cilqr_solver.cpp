@@ -39,8 +39,8 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     velo_max = ego_veh_params["velo_max"].as<double>();
     velo_min = ego_veh_params["velo_min"].as<double>();
     yaw_lim = ego_veh_params["yaw_lim"].as<double>();
-    acc_max = ego_veh_params["a_max"].as<double>();
-    acc_min = ego_veh_params["a_min"].as<double>();
+    acc_max = ego_veh_params["acc_max"].as<double>();
+    acc_min = ego_veh_params["acc_min"].as<double>();
     stl_lim = ego_veh_params["stl_lim"].as<double>();
     double d_safe = ego_veh_params["d_safe"].as<double>();
 
@@ -102,7 +102,7 @@ Eigen::MatrixX4d CILQRSolver::const_velo_prediction(const Eigen::Vector4d& x0, s
     for (size_t i = 0; i < steps; ++i) {
         Eigen::Vector4d next_x = utils::kinematic_propagate(cur_x, cur_u, dt, wheelbase);
         cur_x = next_x;
-        predicted_states.row(i) = next_x;
+        predicted_states.row(i + 1) = next_x;
     }
 
     return predicted_states;
@@ -169,8 +169,8 @@ Eigen::MatrixX2d CILQRSolver::get_ref_exact_points(const Eigen::MatrixX4d& x,
     Eigen::MatrixX2d ref_exact_points = Eigen::MatrixX2d::Zero(x_shape, 2);
 
     for (uint16_t i = 0; i < x_shape; ++i) {
-        uint16_t min_idx = -1;
-        double min_distance = 0;
+        int32_t min_idx = -1;
+        double min_distance = std::numeric_limits<double>::max();
         for (size_t j = start_index; j < ref_waypoints.size(); ++j) {
             double cur_distance = hypot(x(i, 0) - ref_waypoints.x[j], x(i, 1) - ref_waypoints.y[j]);
             if (min_idx < 0 || cur_distance < min_distance) {

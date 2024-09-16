@@ -15,6 +15,8 @@
 #include <functional>
 #include <string> // std::stod
 
+#include <Eigen/Core>
+
 #ifndef WITHOUT_NUMPY
 #  define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #  include <numpy/arrayobject.h>
@@ -375,6 +377,16 @@ PyObject* get_array(const std::vector<Numeric>& v)
     return varray;
 }
 
+template<typename Numeric>
+PyObject* get_array(const Numeric& v)
+{
+    npy_intp vsize = v.rows();
+    NPY_TYPES type = NPY_DOUBLE;
+
+	_import_array();
+    PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(v.data()));
+    return varray;
+}
 
 template<typename Numeric>
 PyObject* get_2darray(const std::vector<::std::vector<Numeric>>& v)
@@ -2868,14 +2880,14 @@ struct plot_impl<std::true_type>
 } // end namespace detail
 
 // recursion stop for the above
-template<typename... Args>
-bool plot() { return true; }
+// template<typename... Args>
+// bool plot() { return true; }
 
-template<typename A, typename B, typename... Args>
-bool plot(const A& a, const B& b, const std::string& format, Args... args)
-{
-    return detail::plot_impl<typename detail::is_callable<B>::type>()(a,b,format) && plot(args...);
-}
+// template<typename A, typename B, typename... Args>
+// bool plot(const A& a, const B& b, const std::string& format, Args... args)
+// {
+//     return detail::plot_impl<typename detail::is_callable<B>::type>()(a,b,format) && plot(args...);
+// }
 
 /*
  * This group of plot() functions is needed to support initializer lists, i.e. calling
@@ -2891,6 +2903,29 @@ inline bool plot(const std::vector<double>& y, const std::string& format = "") {
 
 inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::map<std::string, std::string>& keywords) {
     return plot<double>(x,y,keywords);
+}
+
+inline bool plot(const Eigen::VectorXd& x, const Eigen::VectorXd& y, const std::string& format = "") {
+    assert(x.rows() == y.rows());
+
+    detail::_interpreter::get();
+
+    PyObject* xarray = detail::get_array(x);
+    PyObject* yarray = detail::get_array(y);
+
+    PyObject* pystring = PyString_FromString(format.c_str());
+
+    PyObject* plot_args = PyTuple_New(3);
+    PyTuple_SetItem(plot_args, 0, xarray);
+    PyTuple_SetItem(plot_args, 1, yarray);
+    PyTuple_SetItem(plot_args, 2, pystring);
+
+    PyObject* res = PyObject_CallObject(detail::_interpreter::get().s_python_function_plot, plot_args);
+
+    Py_DECREF(plot_args);
+    if(res) Py_DECREF(res);
+
+    return res;
 }
 
 /*

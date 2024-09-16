@@ -186,14 +186,14 @@ std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     Eigen::MatrixX2d df_du(steps * 4, 2);
 
     for (uint32_t i = 0; i < steps; ++i) {
-        df_dx.block(i * 4, 0, 4, 4).setIdentity();
+        df_dx.block<4, 4>(i * 4, 0).setIdentity();
         df_dx(i * 4, 2) = cos(N_beta[i] + N_yaw[i]) * dt;
         df_dx(i * 4, 3) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt;
         df_dx(i * 4 + 1, 2) = sin(N_beta[i] + N_yaw[i]) * dt;
         df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt;
         df_dx(i * 4 + 3, 2) = 2 * sin(N_beta[i]) * dt / wheelbase;
 
-        df_du.block(i * 4, 0, 2, 2).setZero();
+        df_du.block<4, 2>(i * 4, 0).setZero();
         df_du(i * 4, 1) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt * N_beta_over_stl[i];
         df_du(i * 4 + 1, 1) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt * N_beta_over_stl[i];
         df_du(i * 4 + 2, 0) = dt;
