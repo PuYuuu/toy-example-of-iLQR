@@ -1,8 +1,22 @@
 cmake_minimum_required(VERSION 3.10)
 project(MotionPlanning)
 
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++17 -O3")
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
+endif()
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Configuring Debug build")
+    set(CMAKE_BUILD_TYPE "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O0")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Configuring Release build")
+    set(CMAKE_BUILD_TYPE "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O3")
+endif()
+
 
 add_library(matplotlib_cpp INTERFACE)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)

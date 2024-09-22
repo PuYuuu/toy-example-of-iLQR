@@ -18,7 +18,7 @@ class CILQRSolver {
     CILQRSolver(const YAML::Node& cfg);
     ~CILQRSolver() {}
 
-    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> sovle(const Eigen::Vector4d& x0,
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> solve(const Eigen::Vector4d& x0,
                                                          const ReferenceLine& ref_waypoints,
                                                          double ref_velo,
                                                          const std::vector<RoutingLine>& obs_preds);

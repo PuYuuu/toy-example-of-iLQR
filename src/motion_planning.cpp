@@ -18,7 +18,8 @@ namespace plt = matplotlibcpp;
 
 int main(int argc, char** argv) {
     YAML::Node config;
-    std::filesystem::path config_path = "../config/config.yaml";
+    std::filesystem::path project_path = std::filesystem::current_path().parent_path();
+    std::filesystem::path config_path = project_path / "config" / "config.yaml";
 
     spdlog::info(fmt::format("config path: {}", config_path.string()));
     try {
@@ -45,6 +46,8 @@ int main(int argc, char** argv) {
     Eigen::Vector2d vehicle_para = {vehicle_length, vehicle_width};
     size_t vehicle_num = initial_conditions.size();
 
+    spdlog::set_level(spdlog::level::debug);
+
     std::vector<ReferenceLine> borders;
     std::vector<ReferenceLine> center_lines;
     for (double w : border_widths) {
@@ -59,16 +62,15 @@ int main(int argc, char** argv) {
     Outlook outlook_ego;
     Outlook outlook_agent;
     std::string vehicle_pic_path_ego =
-        "/home/puyu/Codes/toy-example-of-iLQR/images/materials/car_cyan.mat.txt";
+        (project_path / "images" / "materials" / "car_cyan.mat.txt").string();
     std::string vehicle_pic_path_agent =
-        "/home/puyu/Codes/toy-example-of-iLQR/images/materials/car_white.mat.txt";
+        (project_path / "images" / "materials" / "car_white.mat.txt").string();
     outlook_ego.data =
         utils::imread(vehicle_pic_path_ego, outlook_ego.rows, outlook_ego.cols, outlook_ego.colors);
     outlook_agent.data = utils::imread(vehicle_pic_path_agent, outlook_agent.rows,
                                        outlook_agent.cols, outlook_agent.colors);
 
     std::vector<RoutingLine> routing_lines(vehicle_num);
-
     for (size_t idx = 0; idx < vehicle_num; ++idx) {
         size_t line_num = 0;
         double start_s = center_lines[line_num].length();
@@ -99,6 +101,11 @@ int main(int argc, char** argv) {
             routing_lines[idx].yaw.push_back(pos.z());
         }
     }
+    std::vector<RoutingLine> obs_prediction(routing_lines.begin() + 1, routing_lines.end());
+
+    Eigen::Vector4d ego_state = {initial_conditions[0][0], initial_conditions[0][1],
+                                    initial_conditions[0][2],initial_conditions[0][3]};
+    CILQRSolver ilqr_solver = CILQRSolver(config);
 
     for (double t = 0.; t < max_simulation_time; t += delta_t) {
         size_t index = t / delta_t;
@@ -110,13 +117,17 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        utils::imshow(outlook_ego, routing_lines[0][index], vehicle_para);
+        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], 6, {});
+        ego_state = new_x.row(1).transpose();
+
+        plt::plot(new_x.col(0), new_x.col(1), "-r");
+        utils::imshow(outlook_ego, ego_state, vehicle_para);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
             utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);
         }
 
-        plt::xlim(routing_lines[0].x[index] - 15, routing_lines[0].x[index] + 25);
-        plt::ylim(routing_lines[0].y[index] - 5, routing_lines[0].y[index] + 15);
+        plt::xlim(ego_state.x() - 10, ego_state.x() + 30);
+        plt::ylim(ego_state.y() - 5, ego_state.y() + 15);
         plt::pause(delta_t);
     }
 

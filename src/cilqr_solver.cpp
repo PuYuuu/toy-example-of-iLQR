@@ -49,7 +49,7 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
     l_ux.setZero(N * nu, nx);
 }
 
-std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
+std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     const Eigen::Vector4d& x0, const ReferenceLine& ref_waypoints, double ref_velo,
     const std::vector<RoutingLine>& obs_preds) {
     Eigen::MatrixX2d u;
@@ -57,6 +57,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
     std::tie(u, x) = get_init_traj(x0);
     double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds);
     double lamb = init_lamb;
+    TicToc solve_time;
 
     for (uint32_t itr = 0; itr < max_iter; ++itr) {
         auto [new_u, new_x, new_J] = iter_step(u, x, J, lamb, ref_waypoints, ref_velo, obs_preds);
@@ -66,7 +67,8 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
             double last_J = J;
             J = new_J;
             if (abs(J - last_J) < tol) {
-                spdlog::info(fmt::format("Tolerance condition satisfied. {}", itr));
+                spdlog::info(fmt::format(
+                    "Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J));
                 break;
             }
 
@@ -75,11 +77,16 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::sovle(
             lamb *= lamb_amplify;
 
             if (lamb > max_lamb) {
-                spdlog::info("Regularization parameter reached the maximum.");
+                spdlog::warn(fmt::format(
+                    "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}",
+                    itr, J));
                 break;
             }
         }
     }
+
+    double solve_cost_time = solve_time.toc() * 1000;
+    spdlog::debug(fmt::format("solve cost time {:.2f} ms", solve_cost_time));
 
     return std::make_tuple(u, x);
 }
@@ -117,7 +124,7 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
     Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points, ref_velocitys, ref_states;
+    ref_states << ref_exact_points, ref_velocitys, ref_yaws;
 
     double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).sum();
     double ctrl_energy = (u * ctrl_weight * u.transpose()).sum();
@@ -296,7 +303,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::forward_pass(const E
                                                                          const Eigen::MatrixX4d& K,
                                                                          double alpha) {
     Eigen::MatrixX2d new_u = Eigen::MatrixX2d::Zero(N, nu);
-    Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N, nx);
+    Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N + 1, nx);
     new_x.row(0) = x.row(0);
 
     for (uint32_t i = 0; i < N; ++i) {
@@ -325,7 +332,7 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
     Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points, ref_velocitys, ref_states;
+    ref_states << ref_exact_points, ref_velocitys, ref_yaws;
 
     // part 1: cost derivatives due to the prime objective
     Eigen::MatrixX2d l_u_prime = 2 * (u * ctrl_weight);
@@ -367,7 +374,7 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
             Eigen::Vector2d stl_up_barrier_over_u = stl_up_barrier.col(0);
             Eigen::Matrix2d stl_up_barrier_over_uu = stl_up_barrier.block(0, 1, nu, nu);
 
-            double stl_lo_constr = get_bound_constr(u_k[0], acc_min, BoundType::LOWER);
+            double stl_lo_constr = get_bound_constr(u_k[1], -stl_lim, BoundType::LOWER);
             Eigen::Vector2d stl_lo_constr_over_u = {0, -1.0};
             Eigen::MatrixXd stl_lo_barrier = exp_barrier_derivative_and_Hessian(
                 stl_lo_constr, stl_lo_constr_over_u, exp_q1, exp_q2);
@@ -398,10 +405,10 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
         Eigen::Vector4d velo_lo_constr_over_x = {0, 0, -1, 0};
         Eigen::MatrixXd velo_lo_barrier = exp_barrier_derivative_and_Hessian(
             velo_lo_constr, velo_lo_constr_over_x, exp_q1, exp_q2);
-        Eigen::Vector4d velo_lo_barrier_over_x = velo_up_barrier.col(0);
-        Eigen::Matrix4d velo_lo_barrier_over_xx = velo_up_barrier.block(0, 1, nx, nx);
+        Eigen::Vector4d velo_lo_barrier_over_x = velo_lo_barrier.col(0);
+        Eigen::Matrix4d velo_lo_barrier_over_xx = velo_lo_barrier.block(0, 1, nx, nx);
 
-        l_x_barrier.row(k) = velo_up_constr_over_x + velo_lo_barrier_over_x;
+        l_x_barrier.row(k) = velo_up_barrier_over_x + velo_lo_barrier_over_x;
         l_xx_barrier.block(nx * k, 0, nx, nx) = velo_up_barrier_over_xx + velo_lo_barrier_over_xx;
 
         // obstacle avoidance constraints derivatives and Hessians
@@ -440,10 +447,12 @@ Eigen::MatrixXd CILQRSolver::exp_barrier_derivative_and_Hessian(double c, Eigen:
                                                                 double q1, double q2) {
     double b = exp_barrier(c, q1, q2);
     Eigen::VectorXd b_dot = q2 * b * c_dot;
-    Eigen::MatrixXd b_ddot = pow(q2, 2) * b * (c_dot.transpose() * c_dot);
+    Eigen::MatrixXd b_ddot = pow(q2, 2) * b * (c_dot * c_dot.transpose());
 
-    Eigen::MatrixXd derivative_and_Hessian;
-    derivative_and_Hessian << b_dot, b_ddot;
+    size_t dim = b_dot.rows();
+    Eigen::MatrixXd derivative_and_Hessian(dim, dim + 1);
+    derivative_and_Hessian.block(0, 0, dim, 1) = b_dot;
+    derivative_and_Hessian.block(0, 1, dim, dim) = b_ddot;
 
     return derivative_and_Hessian;
 }

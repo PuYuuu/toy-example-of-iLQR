@@ -92,6 +92,15 @@ std::vector<float> imread(std::string filename, int& rows, int& cols, int& color
     return std::move(image);
 }
 
+// state: [x y v yaw]
+void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para) {
+    std::vector<double> state_vector = {state[0], state[1], state[3]};
+    std::vector<double> para_vector =  {para[0], para[1]};
+
+    imshow(out, state_vector, para_vector);
+}
+
+// state: [x y yaw]
 void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para) {
     std::vector<double> state_vector = {state[0], state[1], state[2]};
     std::vector<double> para_vector =  {para[0], para[1]};

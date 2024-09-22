@@ -9,10 +9,10 @@
 #include <chrono>
 #include <climits>
 #include <cmath>
+#include <filesystem>
 #include <numeric>
 #include <string>
 #include <vector>
-#include <filesystem>
 
 class ReferenceLine {
   public:
@@ -57,6 +57,22 @@ struct Outlook {
     int cols;
     int colors;
     std::vector<float> data;
+};
+
+class TicToc {
+  public:
+    TicToc(void) { tic(); }
+
+    void tic(void) { start = std::chrono::system_clock::now(); }
+
+    double toc(void) {
+        end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        return elapsed_seconds.count();
+    }
+
+  private:
+    std::chrono::time_point<std::chrono::system_clock> start, end;
 };
 
 namespace utils {
@@ -202,6 +218,7 @@ class TicToc {
 };
 
 std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
+void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para);
 void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para);
 void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);
 
