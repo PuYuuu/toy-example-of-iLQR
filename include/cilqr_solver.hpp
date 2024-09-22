@@ -25,6 +25,8 @@ class CILQRSolver {
 
   private:
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> get_init_traj(const Eigen::Vector4d& x0);
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> get_init_traj_increment(
+        const Eigen::Vector4d& x0);
     Eigen::MatrixX4d const_velo_prediction(const Eigen::Vector4d& x0, size_t steps, double dt,
                                            double wheelbase);
     double get_total_cost(const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x,
@@ -97,6 +99,10 @@ class CILQRSolver {
     Eigen::MatrixX2d l_xu;
     Eigen::MatrixX4d l_ux;
     Eigen::MatrixX2d l_uu;
+
+    bool is_first_solve;
+    Eigen::MatrixX2d last_solve_u;
+    Eigen::MatrixX4d last_solve_x;
 };
 
 #endif

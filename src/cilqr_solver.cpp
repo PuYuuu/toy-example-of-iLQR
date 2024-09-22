@@ -6,7 +6,7 @@
 #include <Eigen/Dense>
 #include <limits>
 
-CILQRSolver::CILQRSolver(const YAML::Node& cfg) {
+CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
     dt = cfg["delta_t"].as<double>();
 
     YAML::Node planner_params = cfg["lqr"];
@@ -54,7 +54,12 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     const std::vector<RoutingLine>& obs_preds) {
     Eigen::MatrixX2d u;
     Eigen::MatrixX4d x;
-    std::tie(u, x) = get_init_traj(x0);
+    if (is_first_solve) {
+        std::tie(u, x) = get_init_traj(x0);
+        is_first_solve = false;
+    } else {
+        std::tie(u, x) = get_init_traj_increment(x0);
+    }
     double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds);
     double lamb = init_lamb;
     TicToc solve_time;
@@ -84,6 +89,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
             }
         }
     }
+    last_solve_u = u;
 
     double solve_cost_time = solve_time.toc() * 1000;
     spdlog::debug(fmt::format("solve cost time {:.2f} ms", solve_cost_time));
@@ -95,6 +101,25 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::get_init_traj(
     const Eigen::Vector4d& x0) {
     Eigen::MatrixX2d init_u = Eigen::MatrixX2d::Zero(N, 2);
     Eigen::MatrixX4d init_x = const_velo_prediction(x0, N, dt, wheelbase);
+
+    return std::make_tuple(init_u, init_x);
+}
+
+std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::get_init_traj_increment(
+    const Eigen::Vector4d& x0) {
+    Eigen::MatrixX2d init_u = Eigen::MatrixX2d::Zero(N, 2);
+    init_u.block(0, 0, N - 1, 2) = last_solve_u.block(1, 0, N - 1, 2);
+    init_u.block(N - 1, 0, 1, 2) = last_solve_u.block(N - 1, 0, 1, 2);
+
+    Eigen::MatrixX4d init_x = Eigen::MatrixX4d::Zero(N + 1, 4);
+    init_x.row(0) = x0;
+    Eigen::Vector4d cur_x = x0;
+    for (size_t i = 0; i < N; ++i) {
+        Eigen::Vector4d next_x =
+            utils::kinematic_propagate(cur_x, init_u.row(i).transpose(), dt, wheelbase);
+        cur_x = next_x;
+        init_x.row(i + 1) = next_x;
+    }
 
     return std::make_tuple(init_u, init_x);
 }
