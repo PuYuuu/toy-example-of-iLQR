@@ -1,7 +1,6 @@
 #include "cilqr_solver.hpp"
 #include "cubic_spline.hpp"
 #include "matplotlibcpp.h"
-#include "utils.hpp"
 
 #include <fmt/core.h>
 #include <getopt.h>
@@ -20,13 +19,13 @@ int main(int argc, char** argv) {
     YAML::Node config;
     std::filesystem::path project_path = std::filesystem::current_path().parent_path();
     std::filesystem::path config_path = project_path / "config" / "config.yaml";
-
-    spdlog::info(fmt::format("config path: {}", config_path.string()));
+    spdlog::set_level(spdlog::level::debug);
+    SPDLOG_INFO("config path: {}", config_path.string());
     try {
         config = YAML::LoadFile(config_path.string());
-        spdlog::debug(fmt::format("config parameters:\n{}", YAML::Dump(config)));
+        SPDLOG_DEBUG("config parameters:\n{}", YAML::Dump(config));
     } catch (const YAML::Exception& e) {
-        spdlog::error(fmt::format("Error parsing YAML file: {}", e.what()));
+        SPDLOG_ERROR("Error parsing YAML file: {}", e.what());
         return 1;
     }
 
@@ -45,8 +44,6 @@ int main(int argc, char** argv) {
     double vehicle_length = config["vehicle"]["length"].as<double>();
     Eigen::Vector2d vehicle_para = {vehicle_length, vehicle_width};
     size_t vehicle_num = initial_conditions.size();
-
-    spdlog::set_level(spdlog::level::debug);
 
     std::vector<ReferenceLine> borders;
     std::vector<ReferenceLine> center_lines;
@@ -91,7 +88,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        spdlog::debug(fmt::format("idx: {}, line_num: {}, start_s: {}", idx, line_num, start_s));
+        SPDLOG_DEBUG("idx: {}, line_num: {}, start_s: {}", idx, line_num, start_s);
         for (double t = 0.0; t < max_simulation_time; t += delta_t) {
             double cur_s = start_s + t * initial_conditions[idx][2];
             cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
@@ -104,7 +101,7 @@ int main(int argc, char** argv) {
     std::vector<RoutingLine> obs_prediction(routing_lines.begin() + 1, routing_lines.end());
 
     Eigen::Vector4d ego_state = {initial_conditions[0][0], initial_conditions[0][1],
-                                    initial_conditions[0][2],initial_conditions[0][3]};
+                                 initial_conditions[0][2], initial_conditions[0][3]};
     CILQRSolver ilqr_solver = CILQRSolver(config);
 
     for (double t = 0.; t < max_simulation_time; t += delta_t) {

@@ -72,8 +72,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
             double last_J = J;
             J = new_J;
             if (abs(J - last_J) < tol) {
-                spdlog::info(fmt::format(
-                    "Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J));
+                SPDLOG_INFO("Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J);
                 break;
             }
 
@@ -82,9 +81,9 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
             lamb *= lamb_amplify;
 
             if (lamb > max_lamb) {
-                spdlog::warn(fmt::format(
+                SPDLOG_WARN(
                     "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}",
-                    itr, J));
+                    itr, J);
                 break;
             }
         }
@@ -92,7 +91,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     last_solve_u = u;
 
     double solve_cost_time = solve_time.toc() * 1000;
-    spdlog::debug(fmt::format("solve cost time {:.2f} ms", solve_cost_time));
+    SPDLOG_DEBUG("solve cost time {:.2f} ms", solve_cost_time);
 
     return std::make_tuple(u, x);
 }

@@ -2,6 +2,8 @@
 #ifndef __UTILS_HPP
 #define __UTILS_HPP
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+
 #include "cubic_spline.hpp"
 
 #include <Eigen/Core>

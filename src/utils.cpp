@@ -65,14 +65,14 @@ std::vector<float> imread(std::string filename, int& rows, int& cols, int& color
     std::ifstream file(filename);
 
     if (!file.is_open()) {
-        spdlog::error(fmt::format("open {} failed !", filename));
+        SPDLOG_ERROR("open {} failed !", filename);
         return image;
     }
 
     std::string line;
     getline(file, line);
     if (line != "Convert from PNG") {
-        spdlog::error(fmt::format("this format is not supported: {}", filename));
+        SPDLOG_ERROR("this format is not supported: {}", filename);
         return image;
     }
     getline(file, line);
