@@ -56,13 +56,14 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     Eigen::MatrixX4d x;
     if (is_first_solve) {
         std::tie(u, x) = get_init_traj(x0);
-        is_first_solve = false;
+        // is_first_solve = false;
     } else {
         std::tie(u, x) = get_init_traj_increment(x0);
     }
     double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds);
     double lamb = init_lamb;
     TicToc solve_time;
+    bool is_exceed_max_itr = true;
 
     for (uint32_t itr = 0; itr < max_iter; ++itr) {
         auto [new_u, new_x, new_J] = iter_step(u, x, J, lamb, ref_waypoints, ref_velo, obs_preds);
@@ -73,6 +74,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
             J = new_J;
             if (abs(J - last_J) < tol) {
                 SPDLOG_INFO("Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J);
+                is_exceed_max_itr = false;
                 break;
             }
 
@@ -84,12 +86,16 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
                 SPDLOG_WARN(
                     "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}",
                     itr, J);
+                is_exceed_max_itr = false;
                 break;
             }
         }
     }
     last_solve_u = u;
 
+    if (is_exceed_max_itr) {
+        SPDLOG_WARN("Iteration reached the maximum {}. Final cost: {:.3f}", max_iter, J);
+    }
     double solve_cost_time = solve_time.toc() * 1000;
     SPDLOG_DEBUG("solve cost time {:.2f} ms", solve_cost_time);
 
@@ -231,13 +237,11 @@ double CILQRSolver::get_bound_constr(double variable, double bound, BoundType bo
 
 Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,
                                                            const Eigen::Vector3d& obs_state) {
-    Eigen::Matrix2d ego_front_and_rear =
+    auto [ego_front, ego_rear] =
         utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
     Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
-    double front_safety_margin =
-        utils::ellipsoid_safety_margin(ego_front_and_rear.col(0), obs_state, ellipse_ab);
-    double rear_safety_margin =
-        utils::ellipsoid_safety_margin(ego_front_and_rear.col(1), obs_state, ellipse_ab);
+    double front_safety_margin = utils::ellipsoid_safety_margin(ego_front, obs_state, ellipse_ab);
+    double rear_safety_margin = utils::ellipsoid_safety_margin(ego_rear, obs_state, ellipse_ab);
 
     return Eigen::Vector2d{front_safety_margin, rear_safety_margin};
 }
@@ -439,12 +443,8 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
         for (size_t j = 0; j < num_obstacles; ++j) {
             Eigen::Vector3d obs_j_pred_k = obs_preds[j][k];
             Eigen::Vector2d obs_j_constr = get_obstacle_avoidance_constr(x_k, obs_j_pred_k);
-            Eigen::Matrix4Xd obs_j_front_and_rear_constr_over_x =
+            auto [obs_j_front_constr_over_x, obs_j_rear_constr_over_x] =
                 get_obstacle_avoidance_constr_derivatives(x_k, obs_j_pred_k);
-            Eigen::Matrix<double, 4, 2> obs_j_front_constr_over_x =
-                obs_j_front_and_rear_constr_over_x.block(0, 0, 4, 2);
-            Eigen::Matrix<double, 4, 2> obs_j_rear_constr_over_x =
-                obs_j_front_and_rear_constr_over_x.block(0, 2, 4, 2);
 
             Eigen::MatrixXd obs_j_front_barrier = exp_barrier_derivative_and_Hessian(
                 obs_j_constr[0], obs_j_front_constr_over_x, exp_q1, exp_q2);
@@ -481,31 +481,27 @@ Eigen::MatrixXd CILQRSolver::exp_barrier_derivative_and_Hessian(double c, Eigen:
     return derivative_and_Hessian;
 }
 
-Eigen::Matrix4Xd CILQRSolver::get_obstacle_avoidance_constr_derivatives(
+std::tuple<Eigen::Vector4d, Eigen::Vector4d> CILQRSolver::get_obstacle_avoidance_constr_derivatives(
     const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state) {
-    Eigen::Matrix2d ego_front_and_rear =
+    auto [ego_front, ego_rear] =
         utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
     Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
 
     // safety margin over ego front and rear points
     Eigen::Vector2d front_safety_margin_over_ego_front = utils::ellipsoid_safety_margin_derivatives(
-        ego_front_and_rear.col(0), obs_state, ellipse_ab);
+        ego_front, obs_state, ellipse_ab);
     Eigen::Vector2d rear_safety_margin_over_ego_rear = utils::ellipsoid_safety_margin_derivatives(
-        ego_front_and_rear.col(1), obs_state, ellipse_ab);
+        ego_rear, obs_state, ellipse_ab);
 
     // ego front and rear points over state
-    Eigen::Matrix4d ego_front_and_rear_over_state =
+    auto [ego_front_over_state, ego_rear_over_state] =
         utils::get_vehicle_front_and_rear_center_derivatives(ego_state[3], wheelbase);
 
     // chain together
     Eigen::Vector4d front_safety_margin_over_state =
-        ego_front_and_rear_over_state.block(0, 0, nx, 2) * front_safety_margin_over_ego_front;
+        ego_front_over_state * front_safety_margin_over_ego_front;
     Eigen::Vector4d rear_safety_margin_over_state =
-        ego_front_and_rear_over_state.block(0, 2, nx, 2) * rear_safety_margin_over_ego_rear;
+       ego_rear_over_state * rear_safety_margin_over_ego_rear;
 
-    Eigen::Matrix4Xd front_and_rear_safety_margin_over_state;
-    front_and_rear_safety_margin_over_state << front_safety_margin_over_state,
-        rear_safety_margin_over_state;
-
-    return front_and_rear_safety_margin_over_state;
+    return std::make_tuple(front_safety_margin_over_state, rear_safety_margin_over_state);
 }

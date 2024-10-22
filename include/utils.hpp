@@ -229,8 +229,9 @@ Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::V
 std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     const Eigen::MatrixX4d& x, const Eigen::MatrixX2d& u, double dt, double wheelbase,
     uint32_t steps);
-Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase);
-Eigen::Matrix4d get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
+std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
+    const Eigen::Vector4d& state, double wheelbase);
+std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>> get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr);
 double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,

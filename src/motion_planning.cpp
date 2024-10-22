@@ -15,10 +15,27 @@
 
 namespace plt = matplotlibcpp;
 
+std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
+                                               int start_idx) {
+    size_t lines_num = routing_lines.size();
+    std::vector<RoutingLine> sub_routing_lines(lines_num);
+
+    for (size_t i = 0; i < lines_num; ++i) {
+        std::copy(routing_lines[i].x.begin() + start_idx, routing_lines[i].x.end(),
+                  std::back_inserter(sub_routing_lines[i].x));
+        std::copy(routing_lines[i].y.begin() + start_idx, routing_lines[i].y.end(),
+                  std::back_inserter(sub_routing_lines[i].y));
+        std::copy(routing_lines[i].yaw.begin() + start_idx, routing_lines[i].yaw.end(),
+                  std::back_inserter(sub_routing_lines[i].yaw));
+    }
+
+    return sub_routing_lines;
+}
+
 int main(int argc, char** argv) {
     YAML::Node config;
     std::filesystem::path project_path = std::filesystem::current_path().parent_path();
-    std::filesystem::path config_path = project_path / "config" / "config.yaml";
+    std::filesystem::path config_path = project_path / "config" / "scenario_two_traight.yaml";
     spdlog::set_level(spdlog::level::debug);
     SPDLOG_INFO("config path: {}", config_path.string());
     try {
@@ -89,12 +106,12 @@ int main(int argc, char** argv) {
             }
         }
         SPDLOG_DEBUG("idx: {}, line_num: {}, start_s: {}", idx, line_num, start_s);
-        for (double t = 0.0; t < max_simulation_time; t += delta_t) {
+        for (double t = 0.0; t < max_simulation_time + 10; t += delta_t) {
             double cur_s = start_s + t * initial_conditions[idx][2];
             cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
             Eigen::Vector3d pos = center_lines[line_num].calc_position(cur_s);
             routing_lines[idx].x.push_back(pos.x());
-            routing_lines[idx].y.push_back(pos.y());
+            routing_lines[idx].y.push_back(pos.y() - 0.2);
             routing_lines[idx].yaw.push_back(pos.z());
         }
     }
@@ -114,7 +131,8 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], 6, {});
+        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], 6,
+            get_sub_routing_lines(obs_prediction, index));
         ego_state = new_x.row(1).transpose();
 
         plt::plot(new_x.col(0), new_x.col(1), "-r");

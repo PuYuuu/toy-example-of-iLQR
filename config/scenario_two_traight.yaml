@@ -9,11 +9,11 @@ lqr:
   w_vel: 0.5
   w_acc: 1.0
   w_stl: 1.0
-  exp_q1: 0.1
-  exp_q2: 100
+  exp_q1: 5.5
+  exp_q2: 5.75
 
 iteration:
-  max_iter: 120
+  max_iter: 50
   init_lamb: 20
   lamb_decay: 0.7
   lamb_amplify: 2.0
@@ -35,14 +35,14 @@ vehicle:
 
 laneline:
   reference:
-    x: [0, 10, 20, 35, 70, 100, 150]
-    y: [1, 0, 5, 6.5, 0, 0, 0]
-  border: [-1.8, 1.8, 5.4, 9]
-  center_line: [0, 3.6, 7.2]
+    x: [0, 50, 100, 150, 200]
+    y: [0, 0, 0, 0, 0]
+  border: [-1.8, 1.8, 5.4]
+  center_line: [0, 3.6]
 
 initial_condition:
   # [x, y, v, yaw]
-  - [0, 1, 5, 0]  # ego
-  # - [10, 0, 4, 0.5236]
+  - [0, 0, 5.0, 0]  # ego
+  - [10, -0.2, 0, 0]
   # - [14, 6, 4.5, 0.5236]
   # - [40, 13, 1, -0.2]

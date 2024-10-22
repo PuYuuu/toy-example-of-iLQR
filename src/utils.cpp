@@ -112,6 +112,8 @@ void imshow(const Outlook& out, const std::vector<double>& state, const std::vec
     static PyObject* imshow_func = nullptr;
     if (imshow_func == nullptr) {
         Py_Initialize();
+        _import_array();
+
         std::filesystem::path source_file_path(__FILE__);
         std::filesystem::path project_path = source_file_path.parent_path().parent_path();
         std::string script_path = project_path / "scripts" / "utils";
@@ -213,18 +215,17 @@ std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     return std::make_tuple(df_dx, df_du);
 }
 
-Eigen::Matrix2d get_vehicle_front_and_rear_centers(const Eigen::Vector4d& state, double wheelbase) {
+std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
+    const Eigen::Vector4d& state, double wheelbase) {
     double yaw = state[3];
     Eigen::Vector2d half_whba_vec = 0.5 * wheelbase * Eigen::Vector2d{cos(yaw), sin(yaw)};
     Eigen::Vector2d front_pnt = state.head(2) + half_whba_vec;
     Eigen::Vector2d rear_pnt = state.head(2) - half_whba_vec;
-    Eigen::Matrix2d vstack_front_and_rear_pnt;
-    vstack_front_and_rear_pnt << front_pnt, rear_pnt;
 
-    return vstack_front_and_rear_pnt;
+    return std::make_tuple(front_pnt, rear_pnt);
 }
 
-Eigen::Matrix4d get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
+std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>> get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
     double half_whba = 0.5 * wheelbase;
 
     // front point over (center) state:
@@ -238,10 +239,7 @@ Eigen::Matrix4d get_vehicle_front_and_rear_center_derivatives(double yaw, double
     Eigen::Matrix<double, 4, 2> rear_pnt_over_state;
     rear_pnt_over_state << 1, 0, 0, 1, 0, 0, -half_whba * (-sin(yaw)), -half_whba * cos(yaw);
 
-    Eigen::Matrix4d front_and_rear_over_state;
-    front_and_rear_over_state << front_pnt_over_state, rear_pnt_over_state;
-
-    return front_and_rear_over_state;
+    return std::make_tuple(front_pnt_over_state, rear_pnt_over_state);
 }
 
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
