@@ -239,7 +239,8 @@ double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d
 Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
                                                     const Eigen::Vector3d& obs_state,
                                                     const Eigen::Vector2d& ellipse_ab);
-
+Eigen::MatrixX4d get_boundary(const Eigen::MatrixX4d& refline, double width);
+std::vector<std::vector<double>> get_closed_curve(const Eigen::MatrixX4d& refline);
 }  // namespace utils
 
 #endif

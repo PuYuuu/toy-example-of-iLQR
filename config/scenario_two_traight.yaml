@@ -22,6 +22,7 @@ iteration:
   tol: 0.001
 
 vehicle:
+  target_velocity: 5
   wheelbase: 3.6
   width: 2
   length: 4.5
@@ -42,7 +43,7 @@ laneline:
 
 initial_condition:
   # [x, y, v, yaw]
-  - [0, 0, 5.0, 0]  # ego
-  - [10, -0.2, 0, 0]
+  - [0, 0, 4.0, 0]  # ego
+  - [10, -0.2, 0.0, 0]
   # - [14, 6, 4.5, 0.5236]
   # - [40, 13, 1, -0.2]

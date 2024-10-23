@@ -22,6 +22,7 @@ iteration:
   tol: 0.001
 
 vehicle:
+  target_velocity: 5
   wheelbase: 3.6
   width: 2
   length: 4.5

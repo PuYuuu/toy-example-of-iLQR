@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
+#include <Eigen/Dense>
 
 #include <cmath>
 #include <memory>
@@ -33,19 +34,38 @@ std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& r
 }
 
 int main(int argc, char** argv) {
+    int opt;
+    const char* optstring = "c:";
+    std::string config_path;
+
+    while ((opt = getopt(argc, argv, optstring)) != -1) {
+        switch (opt) {
+            case 'c':
+                config_path = optarg;
+                break;
+            default:
+                fmt::print("Usage: %s [-c]\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if (config_path.empty()) {
+        fmt::print("Usage: %s [-c]\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
     YAML::Node config;
-    std::filesystem::path project_path = std::filesystem::current_path().parent_path();
-    std::filesystem::path config_path = project_path / "config" / "scenario_two_traight.yaml";
     spdlog::set_level(spdlog::level::debug);
-    SPDLOG_INFO("config path: {}", config_path.string());
+    SPDLOG_INFO("config path: {}", config_path);
     try {
-        config = YAML::LoadFile(config_path.string());
+        config = YAML::LoadFile(config_path);
         SPDLOG_DEBUG("config parameters:\n{}", YAML::Dump(config));
     } catch (const YAML::Exception& e) {
         SPDLOG_ERROR("Error parsing YAML file: {}", e.what());
         return 1;
     }
 
+    double target_velocity = config["vehicle"]["target_velocity"].as<double>();
     double max_simulation_time = config["max_simulation_time"].as<double>();
     double delta_t = config["delta_t"].as<double>();
     std::vector<double> reference_x =
@@ -75,6 +95,7 @@ int main(int argc, char** argv) {
 
     Outlook outlook_ego;
     Outlook outlook_agent;
+    std::filesystem::path project_path = std::filesystem::current_path().parent_path();
     std::string vehicle_pic_path_ego =
         (project_path / "images" / "materials" / "car_cyan.mat.txt").string();
     std::string vehicle_pic_path_agent =
@@ -131,11 +152,14 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], 6,
+        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], target_velocity,
             get_sub_routing_lines(obs_prediction, index));
         ego_state = new_x.row(1).transpose();
 
-        plt::plot(new_x.col(0), new_x.col(1), "-r");
+        Eigen::MatrixX4d boarder = utils::get_boundary(new_x, vehicle_width * 0.7);
+        std::vector<std::vector<double>> closed_curve = utils::get_closed_curve(boarder);
+        plt::fill(closed_curve[0], closed_curve[1], {{"color", "cyan"}, {"alpha", "0.7"}});
+
         utils::imshow(outlook_ego, ego_state, vehicle_para);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
             utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);

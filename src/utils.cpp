@@ -296,4 +296,38 @@ Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
     return res_over_pnt;
 }
 
+Eigen::MatrixX4d get_boundary(const Eigen::MatrixX4d& refline, double width) {
+    double half_width = width / 2;
+    int n_points = refline.rows();
+    Eigen::MatrixX4d boundary = Eigen::MatrixX4d::Zero(n_points, 4);
+    
+    for (int i = 0; i < n_points; ++i) {
+        double cur_x = refline(i, 0);
+        double cur_y = refline(i, 1);
+        double cur_yaw = refline(i, 3);
+        boundary(i, 0) = cur_x - half_width * sin(cur_yaw);
+        boundary(i, 1) = cur_y + half_width * cos(cur_yaw);
+        boundary(i, 2) = cur_x + half_width * sin(cur_yaw);
+        boundary(i, 3) = cur_y - half_width * cos(cur_yaw);
+    }
+
+    return boundary;
+}
+
+std::vector<std::vector<double>> get_closed_curve(const Eigen::MatrixX4d& refline) {
+    int n_points = refline.rows();
+    std::vector<std::vector<double>> closed_curve(2, std::vector<double>(2 * n_points, 0));
+
+    for (int i = n_points - 1; i >= 0; --i) {
+        closed_curve[0][n_points - 1 - i] = refline(i, 0);
+        closed_curve[1][n_points - 1 - i] = refline(i, 1);
+    }
+    for (int i = 0; i < n_points; ++i) {
+        closed_curve[0][n_points + i] = refline(i, 2);
+        closed_curve[1][n_points + i] = refline(i, 3);
+    }
+
+    return closed_curve;
+}
+
 }  // namespace utils
