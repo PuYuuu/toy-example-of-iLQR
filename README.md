@@ -1,7 +1,10 @@
 # toy-example-of-iLQR
 iterative Linear Quadratic Regulator practice. For more information, see [LQR与iLQR：从理论到实践【详细】](https://zhuanlan.zhihu.com/p/715102938)
 
-*Currently, the real-time performance of CI-LQR examples is poor, which will be optimized later.*
+**[Done]** *~~Currently, the real-time performance of CI-LQR examples is poor, which will be optimized later.~~*
+<div align=center>
+  <img src="./images/cilqr-motionplanning_1.gif" width="520"/>
+</div>
 
 ## Usage
 

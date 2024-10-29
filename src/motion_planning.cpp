@@ -6,8 +6,8 @@
 #include <getopt.h>
 #include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
-#include <Eigen/Dense>
 
+#include <Eigen/Dense>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -77,10 +77,22 @@ int main(int argc, char** argv) {
         config["laneline"]["center_line"].as<std::vector<double>>();
     std::vector<std::vector<double>> initial_conditions =
         config["initial_condition"].as<std::vector<std::vector<double>>>();
-    double vehicle_width = config["vehicle"]["width"].as<double>();
-    double vehicle_length = config["vehicle"]["length"].as<double>();
-    Eigen::Vector2d vehicle_para = {vehicle_length, vehicle_width};
+    double VEHICLE_WIDTH = config["vehicle"]["width"].as<double>();
+    double VEHICLE_HEIGHT = config["vehicle"]["length"].as<double>();
+    double ACC_MAX = config["vehicle"]["acc_max"].as<double>();
+    Eigen::Vector2d vehicle_para = {VEHICLE_HEIGHT, VEHICLE_WIDTH};
     size_t vehicle_num = initial_conditions.size();
+
+    std::vector<double> visual_x_limit = {0, 0};
+    std::vector<double> visual_y_limit = {0, 0};
+    if (config["visualization"]) {
+        if (config["visualization"]["x_lim"]) {
+            visual_x_limit = config["visualization"]["x_lim"].as<std::vector<double>>();
+        }
+        if (config["visualization"]["y_lim"]) {
+            visual_y_limit = config["visualization"]["y_lim"].as<std::vector<double>>();
+        }
+    }
 
     std::vector<ReferenceLine> borders;
     std::vector<ReferenceLine> center_lines;
@@ -95,15 +107,19 @@ int main(int argc, char** argv) {
 
     Outlook outlook_ego;
     Outlook outlook_agent;
-    std::filesystem::path project_path = std::filesystem::current_path().parent_path();
+    Outlook outlook_steering;
+    double steer_size = 5;
+    std::filesystem::path source_file_path(__FILE__);
+    std::filesystem::path project_path = source_file_path.parent_path().parent_path();
     std::string vehicle_pic_path_ego =
         (project_path / "images" / "materials" / "car_cyan.mat.txt").string();
     std::string vehicle_pic_path_agent =
         (project_path / "images" / "materials" / "car_white.mat.txt").string();
-    outlook_ego.data =
-        utils::imread(vehicle_pic_path_ego, outlook_ego.rows, outlook_ego.cols, outlook_ego.colors);
-    outlook_agent.data = utils::imread(vehicle_pic_path_agent, outlook_agent.rows,
-                                       outlook_agent.cols, outlook_agent.colors);
+    std::string steering_pic_path =
+        (project_path / "images" / "materials" / "steering_wheel.mat.txt").string();
+    utils::imread(vehicle_pic_path_ego, outlook_ego);
+    utils::imread(vehicle_pic_path_agent, outlook_agent);
+    utils::imread(steering_pic_path, outlook_steering);
 
     std::vector<RoutingLine> routing_lines(vehicle_num);
     for (size_t idx = 0; idx < vehicle_num; ++idx) {
@@ -132,7 +148,7 @@ int main(int argc, char** argv) {
             cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
             Eigen::Vector3d pos = center_lines[line_num].calc_position(cur_s);
             routing_lines[idx].x.push_back(pos.x());
-            routing_lines[idx].y.push_back(pos.y() - 0.2);
+            routing_lines[idx].y.push_back(pos.y());
             routing_lines[idx].yaw.push_back(pos.z());
         }
     }
@@ -146,17 +162,21 @@ int main(int argc, char** argv) {
         size_t index = t / delta_t;
         plt::cla();
         for (size_t i = 0; i < borders.size(); ++i) {
-            plt::plot(borders[i].x, borders[i].y, "-k");
+            if (i == 0 || i == borders.size() - 1) {
+                plt::plot(borders[i].x, borders[i].y, {{"linewidth", "2"}, {"color", "k"}});
+            } else {
+                plt::plot(borders[i].x, borders[i].y, "-k");
+            }
         }
         for (size_t i = 0; i < center_lines.size(); ++i) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
         auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], target_velocity,
-            get_sub_routing_lines(obs_prediction, index));
+                                                get_sub_routing_lines(obs_prediction, index));
         ego_state = new_x.row(1).transpose();
 
-        Eigen::MatrixX4d boarder = utils::get_boundary(new_x, vehicle_width * 0.7);
+        Eigen::MatrixX4d boarder = utils::get_boundary(new_x, VEHICLE_WIDTH * 0.7);
         std::vector<std::vector<double>> closed_curve = utils::get_closed_curve(boarder);
         plt::fill(closed_curve[0], closed_curve[1], {{"color", "cyan"}, {"alpha", "0.7"}});
 
@@ -165,8 +185,55 @@ int main(int argc, char** argv) {
             utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);
         }
 
-        plt::xlim(ego_state.x() - 10, ego_state.x() + 30);
-        plt::ylim(ego_state.y() - 5, ego_state.y() + 15);
+        // defualt figure x-y limit
+        double visual_x_min = ego_state.x() - 10;
+        double visual_y_min = ego_state.y() - 5;
+        double visual_x_max = ego_state.x() + 30;
+        double visual_y_max = ego_state.y() + 15;
+        if (hypot(visual_x_limit[0], visual_x_limit[1]) > 1e-3) {
+            visual_x_min = visual_x_limit[0];
+            visual_x_max = visual_x_limit[1];
+        }
+        if (hypot(visual_y_limit[0], visual_y_limit[1]) > 1e-3) {
+            visual_y_min = visual_y_limit[0];
+            visual_y_max = visual_y_limit[1];
+        }
+
+        Eigen::Vector3d outlook_steer_pos = {visual_x_min + steer_size / 1.5,
+                                             visual_y_max - steer_size / 1.5,
+                                             new_u.row(0)[1] * 2.5};
+        utils::imshow(outlook_steering, outlook_steer_pos, {steer_size, steer_size});
+        double acc = new_u.row(0)[0] > 0 ? new_u.row(0)[0] : 0;
+        double brake = new_u.row(0)[0] > 0 ? 0 : -new_u.row(0)[0];
+        double bar_bottom = visual_y_max - steer_size;
+        double bar_left = visual_x_min + steer_size * 1.3;
+        std::vector<double> acc_bar_x = {bar_left, bar_left + 1, bar_left + 1, bar_left};
+        std::vector<double> acc_bar_y = {bar_bottom, bar_bottom,
+                                         bar_bottom + steer_size * (acc / ACC_MAX),
+                                         bar_bottom + steer_size * (acc / ACC_MAX)};
+        std::vector<double> brake_bar_x = {bar_left + 2, bar_left + 3, bar_left + 3, bar_left + 2};
+        std::vector<double> brake_bar_y = {bar_bottom, bar_bottom,
+                                           bar_bottom + steer_size * (brake / ACC_MAX),
+                                           bar_bottom + steer_size * (brake / ACC_MAX)};
+        plt::fill(acc_bar_x, acc_bar_y, {{"color", "red"}});
+        plt::fill(brake_bar_x, brake_bar_y, {{"color", "gray"}});
+        double text_left = bar_left + 4.5;
+        double text_top = visual_y_max - 1.5;
+        plt::text(text_left, text_top, fmt::format("x = {:.2f} m", ego_state.x()),
+                  {{"color", "black"}});
+        plt::text(text_left, text_top - 1.5, fmt::format("y = {:.2f} m", ego_state.y()),
+                  {{"color", "black"}});
+        plt::text(text_left, text_top - 3, fmt::format("v = {:.2f} m / s", ego_state.z()),
+                  {{"color", "black"}});
+        plt::text(text_left, text_top - 4.5, fmt::format("yaw = {:.2f} rad", ego_state.w()),
+                  {{"color", "black"}});
+        plt::text(text_left + 10, text_top, fmt::format("acc = {:.2f}", new_u.row(0)[0]),
+                  {{"color", "black"}});
+        plt::text(text_left + 10, text_top - 1.5, fmt::format("steer = {:.2f}", new_u.row(0)[1]),
+                  {{"color", "black"}});
+
+        plt::xlim(visual_x_min, visual_x_max);
+        plt::ylim(visual_y_min, visual_y_max);
         plt::pause(delta_t);
     }
 

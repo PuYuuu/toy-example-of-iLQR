@@ -219,7 +219,8 @@ class TicToc {
     std::chrono::time_point<std::chrono::system_clock> start, end;
 };
 
-std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
+// std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
+bool imread(std::string filename, Outlook& outlook);
 void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para);
 void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para);
 void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);

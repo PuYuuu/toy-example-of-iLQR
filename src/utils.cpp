@@ -60,42 +60,72 @@ Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
 
 namespace utils {
 
-std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors) {
-    std::vector<float> image;
+// std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors) {
+//     std::vector<float> image;
+//     std::ifstream file(filename);
+
+//     if (!file.is_open()) {
+//         SPDLOG_ERROR("open {} failed !", filename);
+//         return image;
+//     }
+
+//     std::string line;
+//     getline(file, line);
+//     if (line != "Convert from PNG") {
+//         SPDLOG_ERROR("this format is not supported: {}", filename);
+//         return image;
+//     }
+//     getline(file, line);
+//     std::istringstream iss(line);
+//     iss >> rows >> cols >> colors;
+//     image.resize(rows * cols * colors);
+//     int idx = 0;
+//     while (getline(file, line)) {
+//         std::istringstream iss(line);
+//         for (int i = 0; i < colors; ++i) {
+//             iss >> image[idx++];
+//         }
+//     }
+//     file.close();
+
+//     // directly return will trigger RVO (Return Value Optimization)
+//     return std::move(image);
+// }
+
+bool imread(std::string filename, Outlook& outlook) {
     std::ifstream file(filename);
 
     if (!file.is_open()) {
         SPDLOG_ERROR("open {} failed !", filename);
-        return image;
+        return false;
     }
 
     std::string line;
     getline(file, line);
     if (line != "Convert from PNG") {
         SPDLOG_ERROR("this format is not supported: {}", filename);
-        return image;
+        return false;
     }
     getline(file, line);
     std::istringstream iss(line);
-    iss >> rows >> cols >> colors;
-    image.resize(rows * cols * colors);
+    iss >> outlook.rows >> outlook.cols >> outlook.colors;
+    outlook.data.resize(outlook.rows * outlook.cols * outlook.colors);
     int idx = 0;
     while (getline(file, line)) {
         std::istringstream iss(line);
-        for (int i = 0; i < colors; ++i) {
-            iss >> image[idx++];
+        for (int i = 0; i < outlook.colors; ++i) {
+            iss >> outlook.data[idx++];
         }
     }
     file.close();
 
-    // directly return will trigger RVO (Return Value Optimization)
-    return std::move(image);
+    return true;
 }
 
 // state: [x y v yaw]
 void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para) {
     std::vector<double> state_vector = {state[0], state[1], state[3]};
-    std::vector<double> para_vector =  {para[0], para[1]};
+    std::vector<double> para_vector = {para[0], para[1]};
 
     imshow(out, state_vector, para_vector);
 }
@@ -103,7 +133,7 @@ void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vecto
 // state: [x y yaw]
 void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para) {
     std::vector<double> state_vector = {state[0], state[1], state[2]};
-    std::vector<double> para_vector =  {para[0], para[1]};
+    std::vector<double> para_vector = {para[0], para[1]};
 
     imshow(out, state_vector, para_vector);
 }
@@ -225,7 +255,8 @@ std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
     return std::make_tuple(front_pnt, rear_pnt);
 }
 
-std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>> get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
+std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>>
+get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
     double half_whba = 0.5 * wheelbase;
 
     // front point over (center) state:
@@ -245,7 +276,7 @@ std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>> get_vehicle
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr) {
     double a = 0.5 * obs_attr[1] + obs_attr[2] + ego_pnt_radius;
-    double b = 0.5 * obs_attr[0] + obs_attr[2] + ego_pnt_radius;
+    double b = 0.5 * obs_attr[0] + obs_attr[2] * 0.5 + ego_pnt_radius;
 
     return Eigen::Vector2d{a, b};
 }
@@ -300,7 +331,7 @@ Eigen::MatrixX4d get_boundary(const Eigen::MatrixX4d& refline, double width) {
     double half_width = width / 2;
     int n_points = refline.rows();
     Eigen::MatrixX4d boundary = Eigen::MatrixX4d::Zero(n_points, 4);
-    
+
     for (int i = 0; i < n_points; ++i) {
         double cur_x = refline(i, 0);
         double cur_y = refline(i, 1);

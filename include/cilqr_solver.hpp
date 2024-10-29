@@ -41,7 +41,7 @@ class CILQRSolver {
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
-    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> backward_pass(
+    std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> backward_pass(
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
         const std::vector<RoutingLine>& obs_preds);
@@ -69,8 +69,11 @@ class CILQRSolver {
     uint32_t nu;
     Eigen::Matrix4d state_weight;
     Eigen::Matrix2d ctrl_weight;
-    double exp_q1;
-    double exp_q2;
+    double obstacle_exp_q1;
+    double obstacle_exp_q2;
+    double state_exp_q1;
+    double state_exp_q2;
+    bool use_last_solution;
 
     // iteration-related settings
     uint32_t max_iter;
@@ -78,7 +81,6 @@ class CILQRSolver {
     double lamb_decay;
     double lamb_amplify;
     double max_lamb;
-    std::vector<double> alpha_options;
     double tol;
 
     // ego vehicle-related settings
@@ -103,6 +105,7 @@ class CILQRSolver {
     bool is_first_solve;
     Eigen::MatrixX2d last_solve_u;
     Eigen::MatrixX4d last_solve_x;
+    double last_solve_J;
 };
 
 #endif
