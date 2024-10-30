@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-08-31 22:36:28
+ * @LastEditTime: 2024-10-31 00:42:25
+ * @FilePath: /toy-example-of-iLQR/src/cubic_spline.cpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #include <Eigen/Dense>
 
 #include "cubic_spline.hpp"

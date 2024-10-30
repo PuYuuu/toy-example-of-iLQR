@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-09-02 23:26:51
+ * @LastEditTime: 2024-10-31 00:42:07
+ * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #pragma once
 #ifndef __CILQR_SOLVER_HPP
 #define __CILQR_SOLVER_HPP
@@ -21,7 +29,8 @@ class CILQRSolver {
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> solve(const Eigen::Vector4d& x0,
                                                          const ReferenceLine& ref_waypoints,
                                                          double ref_velo,
-                                                         const std::vector<RoutingLine>& obs_preds);
+                                                         const std::vector<RoutingLine>& obs_preds,
+                                                         const Eigen::Vector2d& road_boaders);
 
   private:
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> get_init_traj(const Eigen::Vector4d& x0);
@@ -31,7 +40,8 @@ class CILQRSolver {
                                            double wheelbase);
     double get_total_cost(const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x,
                           const ReferenceLine& ref_waypoints, double ref_velo,
-                          const std::vector<RoutingLine>& obs_preds);
+                          const std::vector<RoutingLine>& obs_preds,
+                          const Eigen::Vector2d& road_boaders);
     Eigen::MatrixX2d get_ref_exact_points(const Eigen::MatrixX4d& x,
                                           const ReferenceLine& ref_waypoints);
     double get_bound_constr(double variable, double bound, BoundType bound_type);
@@ -40,11 +50,11 @@ class CILQRSolver {
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> iter_step(
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
-        const std::vector<RoutingLine>& obs_preds);
+        const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> backward_pass(
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
-        const std::vector<RoutingLine>& obs_preds);
+        const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> forward_pass(const Eigen::MatrixX2d& u,
                                                                 const Eigen::MatrixX4d& x,
                                                                 const Eigen::MatrixX2d& d,
@@ -54,11 +64,12 @@ class CILQRSolver {
                                                  const Eigen::MatrixX4d& x,
                                                  const ReferenceLine& ref_waypoints,
                                                  double ref_velo,
-                                                 const std::vector<RoutingLine>& obs_preds);
+                                                 const std::vector<RoutingLine>& obs_preds,
+                                                 const Eigen::Vector2d& road_boaders);
 
     double exp_barrier(double c, double q1, double q2) { return q1 * exp(q2 * c); }
-    Eigen::MatrixXd exp_barrier_derivative_and_Hessian(double c, Eigen::MatrixXd c_dot, double q1,
-                                                       double q2);
+    std::tuple<Eigen::VectorXd, Eigen::MatrixXd> exp_barrier_derivative_and_Hessian(
+        double c, Eigen::MatrixXd c_dot, double q1, double q2);
     std::tuple<Eigen::Vector4d, Eigen::Vector4d> get_obstacle_avoidance_constr_derivatives(
         const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state);
 

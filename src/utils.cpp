@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-09-27 01:20:39
+ * @LastEditTime: 2024-10-31 00:42:40
+ * @FilePath: /toy-example-of-iLQR/src/utils.cpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #include "matplotlibcpp.h"
 #include "utils.hpp"
 

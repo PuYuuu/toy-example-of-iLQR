@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-08-31 22:36:55
+ * @LastEditTime: 2024-10-31 00:41:29
+ * @FilePath: /toy-example-of-iLQR/include/cubic_spline.hpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #pragma once
 #ifndef __CUBIC_SPLINE_HPP
 #define __CUBIC_SPLINE_HPP

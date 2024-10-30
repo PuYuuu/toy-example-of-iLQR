@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-09-27 01:20:28
+ * @LastEditTime: 2024-10-31 00:41:55
+ * @FilePath: /toy-example-of-iLQR/include/utils.hpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #pragma once
 #ifndef __UTILS_HPP
 #define __UTILS_HPP

@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-09-27 00:21:21
+ * @LastEditTime: 2024-10-31 00:42:18
+ * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #include "cilqr_solver.hpp"
 
 #include <fmt/core.h>
@@ -55,7 +63,7 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     const Eigen::Vector4d& x0, const ReferenceLine& ref_waypoints, double ref_velo,
-    const std::vector<RoutingLine>& obs_preds) {
+    const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders) {
     Eigen::MatrixX2d u;
     Eigen::MatrixX4d x;
     if (!is_first_solve && use_last_solution) {
@@ -65,13 +73,14 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
         is_first_solve = false;
     }
 
-    double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds);
+    double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
     double lamb = init_lamb;
     TicToc solve_time;
     bool is_exceed_max_itr = true;
 
     for (uint32_t itr = 0; itr < max_iter; ++itr) {
-        auto [new_u, new_x, new_J] = iter_step(u, x, J, lamb, ref_waypoints, ref_velo, obs_preds);
+        auto [new_u, new_x, new_J] =
+            iter_step(u, x, J, lamb, ref_waypoints, ref_velo, obs_preds, road_boaders);
         if (new_J < J) {
             x = new_x;
             u = new_u;
@@ -153,7 +162,8 @@ Eigen::MatrixX4d CILQRSolver::const_velo_prediction(const Eigen::Vector4d& x0, s
 
 double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x,
                                    const ReferenceLine& ref_waypoints, double ref_velo,
-                                   const std::vector<RoutingLine>& obs_preds) {
+                                   const std::vector<RoutingLine>& obs_preds,
+                                   const Eigen::Vector2d& road_boaders) {
     size_t num_obstacles = obs_preds.size();
     //  part 1: costs included in the prime objective
     Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
@@ -185,8 +195,8 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
         double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
 
         // y constraints
-        double pos_up_constr = get_bound_constr(x_k[1], 5.4 - width, BoundType::UPPER);
-        double pos_lo_constr = get_bound_constr(x_k[1], -1.8 + width, BoundType::LOWER);
+        double pos_up_constr = get_bound_constr(x_k[1], road_boaders[0] - width, BoundType::UPPER);
+        double pos_lo_constr = get_bound_constr(x_k[1], road_boaders[1] + width, BoundType::LOWER);
 
         double J_barrier_k = exp_barrier(acc_up_constr, state_exp_q1, state_exp_q2) +
                              exp_barrier(acc_lo_constr, state_exp_q1, state_exp_q2) +
@@ -259,9 +269,10 @@ Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
     const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
-    const ReferenceLine& ref_waypoints, double ref_velo,
-    const std::vector<RoutingLine>& obs_preds) {
-    auto [d, K, delta_item] = backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds);
+    const ReferenceLine& ref_waypoints, double ref_velo, const std::vector<RoutingLine>& obs_preds,
+    const Eigen::Vector2d& road_boaders) {
+    auto [d, K, delta_item] =
+        backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds, road_boaders);
 
     Eigen::MatrixX2d new_u = Eigen::MatrixX2d::Zero(N, nu);
     Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N + 1, nx);
@@ -270,7 +281,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
 
     for (double alpha = 1.0; alpha > 1e-6; alpha *= 0.5) {
         std::tie(new_u, new_x) = forward_pass(u, x, d, K, alpha);
-        new_J = get_total_cost(new_u, new_x, ref_waypoints, ref_velo, obs_preds);
+        new_J = get_total_cost(new_u, new_x, ref_waypoints, ref_velo, obs_preds, road_boaders);
         double except_reduce = alpha * alpha * delta_item[0] + alpha * delta_item[1];
         double tmp = (new_J - cost) / (except_reduce - 1e-5);
         // if (tmp < 50 && tmp > 0.0001) {
@@ -291,9 +302,9 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
 
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> CILQRSolver::backward_pass(
     const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
-    const ReferenceLine& ref_waypoints, double ref_velo,
-    const std::vector<RoutingLine>& obs_preds) {
-    get_total_cost_derivatives_and_Hessians(u, x, ref_waypoints, ref_velo, obs_preds);
+    const ReferenceLine& ref_waypoints, double ref_velo, const std::vector<RoutingLine>& obs_preds,
+    const Eigen::Vector2d& road_boaders) {
+    get_total_cost_derivatives_and_Hessians(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
     auto [df_dx, df_du] = utils::get_kinematic_model_derivatives(x, u, dt, wheelbase, N);
 
     Eigen::Vector2d delta_V = {0.0, 0.0};
@@ -367,9 +378,12 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::forward_pass(const E
     return std::tuple(new_u, new_x);
 }
 
-void CILQRSolver::get_total_cost_derivatives_and_Hessians(
-    const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, const ReferenceLine& ref_waypoints,
-    double ref_velo, const std::vector<RoutingLine>& obs_preds) {
+void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d& u,
+                                                          const Eigen::MatrixX4d& x,
+                                                          const ReferenceLine& ref_waypoints,
+                                                          double ref_velo,
+                                                          const std::vector<RoutingLine>& obs_preds,
+                                                          const Eigen::Vector2d& road_boaders) {
     l_x.setZero(N, nx);
     l_u.setZero(N, nu);
     l_xx.setZero(N * nx, nx);
@@ -404,32 +418,28 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
             // acceleration constraints derivatives and Hessians
             double acc_up_constr = get_bound_constr(u_k[0], acc_max, BoundType::UPPER);
             Eigen::Vector2d acc_up_constr_over_u = {1.0, 0.0};
-            Eigen::MatrixXd acc_up_barrier = exp_barrier_derivative_and_Hessian(
-                acc_up_constr, acc_up_constr_over_u, state_exp_q1, state_exp_q2);
-            Eigen::Vector2d acc_up_barrier_over_u = acc_up_barrier.col(0);
-            Eigen::Matrix2d acc_up_barrier_over_uu = acc_up_barrier.block(0, 1, nu, nu);
+            auto [acc_up_barrier_over_u, acc_up_barrier_over_uu] =
+                exp_barrier_derivative_and_Hessian(acc_up_constr, acc_up_constr_over_u,
+                                                   state_exp_q1, state_exp_q2);
 
             double acc_lo_constr = get_bound_constr(u_k[0], acc_min, BoundType::LOWER);
             Eigen::Vector2d acc_lo_constr_over_u = {-1, 0};
-            Eigen::MatrixXd acc_lo_barrier = exp_barrier_derivative_and_Hessian(
-                acc_lo_constr, acc_lo_constr_over_u, state_exp_q1, state_exp_q2);
-            Eigen::Vector2d acc_lo_barrier_over_u = acc_lo_barrier.col(0);
-            Eigen::Matrix2d acc_lo_barrier_over_uu = acc_lo_barrier.block(0, 1, nu, nu);
+            auto [acc_lo_barrier_over_u, acc_lo_barrier_over_uu] =
+                exp_barrier_derivative_and_Hessian(acc_lo_constr, acc_lo_constr_over_u,
+                                                   state_exp_q1, state_exp_q2);
 
             // steering angle constraints derivatives and Hessians
             double stl_up_constr = get_bound_constr(u_k[1], stl_lim, BoundType::UPPER);
             Eigen::Vector2d stl_up_constr_over_u = {0.0, 1.0};
-            Eigen::MatrixXd stl_up_barrier = exp_barrier_derivative_and_Hessian(
-                stl_up_constr, stl_up_constr_over_u, state_exp_q1, state_exp_q2);
-            Eigen::Vector2d stl_up_barrier_over_u = stl_up_barrier.col(0);
-            Eigen::Matrix2d stl_up_barrier_over_uu = stl_up_barrier.block(0, 1, nu, nu);
+            auto [stl_up_barrier_over_u, stl_up_barrier_over_uu] =
+                exp_barrier_derivative_and_Hessian(stl_up_constr, stl_up_constr_over_u,
+                                                   state_exp_q1, state_exp_q2);
 
             double stl_lo_constr = get_bound_constr(u_k[1], -stl_lim, BoundType::LOWER);
             Eigen::Vector2d stl_lo_constr_over_u = {0, -1.0};
-            Eigen::MatrixXd stl_lo_barrier = exp_barrier_derivative_and_Hessian(
-                stl_lo_constr, stl_lo_constr_over_u, state_exp_q1, state_exp_q2);
-            Eigen::Vector2d stl_lo_barrier_over_u = stl_lo_barrier.col(0);
-            Eigen::Matrix2d stl_lo_barrier_over_uu = stl_lo_barrier.block(0, 1, nu, nu);
+            auto [stl_lo_barrier_over_u, stl_lo_barrier_over_uu] =
+                exp_barrier_derivative_and_Hessian(stl_lo_constr, stl_lo_constr_over_u,
+                                                   state_exp_q1, state_exp_q2);
 
             // fill the ctrl-related spaces
             l_u_barrier.row(k) =
@@ -446,31 +456,23 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
         // velocity constraints derivatives and Hessians
         double velo_up_constr = get_bound_constr(x_k[2], velo_max, BoundType::UPPER);
         Eigen::Vector4d velo_up_constr_over_x = {0, 0, 1, 0};
-        Eigen::MatrixXd velo_up_barrier = exp_barrier_derivative_and_Hessian(
+        auto [velo_up_barrier_over_x, velo_up_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             velo_up_constr, velo_up_constr_over_x, state_exp_q1, state_exp_q2);
-        Eigen::Vector4d velo_up_barrier_over_x = velo_up_barrier.col(0);
-        Eigen::Matrix4d velo_up_barrier_over_xx = velo_up_barrier.block(0, 1, nx, nx);
 
         double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
         Eigen::Vector4d velo_lo_constr_over_x = {0, 0, -1, 0};
-        Eigen::MatrixXd velo_lo_barrier = exp_barrier_derivative_and_Hessian(
+        auto [velo_lo_barrier_over_x, velo_lo_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             velo_lo_constr, velo_lo_constr_over_x, state_exp_q1, state_exp_q2);
-        Eigen::Vector4d velo_lo_barrier_over_x = velo_lo_barrier.col(0);
-        Eigen::Matrix4d velo_lo_barrier_over_xx = velo_lo_barrier.block(0, 1, nx, nx);
 
-        double pos_up_constr = get_bound_constr(x_k[1], 5.4 - width, BoundType::UPPER);
+        double pos_up_constr = get_bound_constr(x_k[1], road_boaders[0] - width, BoundType::UPPER);
         Eigen::Vector4d pos_up_constr_over_x = {0, 1, 0, 0};
-        Eigen::MatrixXd pos_up_barrier = exp_barrier_derivative_and_Hessian(
+        auto [pos_up_barrier_over_x, pos_up_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             pos_up_constr, pos_up_constr_over_x, state_exp_q1, state_exp_q2);
-        Eigen::Vector4d pos_up_barrier_over_x = pos_up_barrier.col(0);
-        Eigen::Matrix4d pos_up_barrier_over_xx = pos_up_barrier.block(0, 1, nx, nx);
 
-        double pos_lo_constr = get_bound_constr(x_k[1], -1.8 + width, BoundType::LOWER);
+        double pos_lo_constr = get_bound_constr(x_k[1], road_boaders[1] + width, BoundType::LOWER);
         Eigen::Vector4d pos_lo_constr_over_x = {0, -1, 0, 0};
-        Eigen::MatrixXd pos_lo_barrier = exp_barrier_derivative_and_Hessian(
+        auto [pos_lo_barrier_over_x, pos_lo_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             pos_lo_constr, pos_lo_constr_over_x, state_exp_q1, state_exp_q2);
-        Eigen::Vector4d pos_lo_barrier_over_x = pos_lo_barrier.col(0);
-        Eigen::Matrix4d pos_lo_barrier_over_xx = pos_lo_barrier.block(0, 1, nx, nx);
 
         l_x_barrier.row(k) = velo_up_barrier_over_x + velo_lo_barrier_over_x +
                              pos_up_barrier_over_x + pos_lo_barrier_over_x;
@@ -484,14 +486,12 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
             auto [obs_j_front_constr_over_x, obs_j_rear_constr_over_x] =
                 get_obstacle_avoidance_constr_derivatives(x_k, obs_j_pred_k);
 
-            Eigen::MatrixXd obs_j_front_barrier = exp_barrier_derivative_and_Hessian(
-                obs_j_constr[0], obs_j_front_constr_over_x, obstacle_exp_q1, obstacle_exp_q2);
-            Eigen::Vector4d obs_j_front_barrier_over_x = obs_j_front_barrier.col(0);
-            Eigen::Matrix4d obs_j_front_barrier_over_xx = obs_j_front_barrier.block(0, 1, nx, nx);
-            Eigen::MatrixXd obs_j_rear_barrier = exp_barrier_derivative_and_Hessian(
-                obs_j_constr[1], obs_j_rear_constr_over_x, obstacle_exp_q1, obstacle_exp_q2);
-            Eigen::Vector4d obs_j_rear_barrier_over_x = obs_j_rear_barrier.col(0);
-            Eigen::Matrix4d obs_j_rear_barrier_over_xx = obs_j_rear_barrier.block(0, 1, nx, nx);
+            auto [obs_j_front_barrier_over_x, obs_j_front_barrier_over_xx] =
+                exp_barrier_derivative_and_Hessian(obs_j_constr[0], obs_j_front_constr_over_x,
+                                                   obstacle_exp_q1, obstacle_exp_q2);
+            auto [obs_j_rear_barrier_over_x, obs_j_rear_barrier_over_xx] =
+                exp_barrier_derivative_and_Hessian(obs_j_constr[1], obs_j_rear_constr_over_x,
+                                                   obstacle_exp_q1, obstacle_exp_q2);
 
             l_x_barrier.row(k) += (obs_j_front_barrier_over_x + obs_j_rear_barrier_over_x);
             l_xx_barrier.block(nx * k, 0, nx, nx) +=
@@ -505,18 +505,13 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(
     l_xx = l_xx_prime + l_xx_barrier;
 }
 
-Eigen::MatrixXd CILQRSolver::exp_barrier_derivative_and_Hessian(double c, Eigen::MatrixXd c_dot,
-                                                                double q1, double q2) {
+std::tuple<Eigen::VectorXd, Eigen::MatrixXd> CILQRSolver::exp_barrier_derivative_and_Hessian(
+    double c, Eigen::MatrixXd c_dot, double q1, double q2) {
     double b = exp_barrier(c, q1, q2);
     Eigen::VectorXd b_dot = q2 * b * c_dot;
     Eigen::MatrixXd b_ddot = pow(q2, 2) * b * (c_dot * c_dot.transpose());
 
-    size_t dim = b_dot.rows();
-    Eigen::MatrixXd derivative_and_Hessian(dim, dim + 1);
-    derivative_and_Hessian.block(0, 0, dim, 1) = b_dot;
-    derivative_and_Hessian.block(0, 1, dim, dim) = b_ddot;
-
-    return derivative_and_Hessian;
+    return std::make_tuple(b_dot, b_ddot);
 }
 
 std::tuple<Eigen::Vector4d, Eigen::Vector4d> CILQRSolver::get_obstacle_avoidance_constr_derivatives(

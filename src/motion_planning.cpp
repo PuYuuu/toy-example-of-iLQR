@@ -1,3 +1,11 @@
+/*
+ * @Author: puyu <yuu.pu@foxmail.com>
+ * @Date: 2024-10-30 00:05:14
+ * @LastEditTime: 2024-10-31 00:44:30
+ * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
+ * Copyright 2024 puyu, All Rights Reserved.
+ */
+
 #include "cilqr_solver.hpp"
 #include "cubic_spline.hpp"
 #include "matplotlibcpp.h"
@@ -104,6 +112,9 @@ int main(int argc, char** argv) {
         ReferenceLine reference(reference_x, reference_y, w);
         center_lines.emplace_back(reference);
     }
+    std::sort(border_widths.begin(), border_widths.end(), std::greater<double>());
+    Eigen::Vector2d road_borders;
+    road_borders << border_widths[0], border_widths.back();
 
     Outlook outlook_ego;
     Outlook outlook_agent;
@@ -172,8 +183,9 @@ int main(int argc, char** argv) {
             plt::plot(center_lines[i].x, center_lines[i].y, "--k");
         }
 
-        auto [new_u, new_x] = ilqr_solver.solve(ego_state, center_lines[0], target_velocity,
-                                                get_sub_routing_lines(obs_prediction, index));
+        auto [new_u, new_x] =
+            ilqr_solver.solve(ego_state, center_lines[0], target_velocity,
+                              get_sub_routing_lines(obs_prediction, index), road_borders);
         ego_state = new_x.row(1).transpose();
 
         Eigen::MatrixX4d boarder = utils::get_boundary(new_x, VEHICLE_WIDTH * 0.7);
