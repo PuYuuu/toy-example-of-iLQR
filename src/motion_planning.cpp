@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-10-30 00:05:14
- * @LastEditTime: 2024-10-31 00:44:30
+ * @LastEditTime: 2024-11-01 00:22:57
  * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -91,6 +91,7 @@ int main(int argc, char** argv) {
     Eigen::Vector2d vehicle_para = {VEHICLE_HEIGHT, VEHICLE_WIDTH};
     size_t vehicle_num = initial_conditions.size();
 
+    bool show_reference_line = false;
     std::vector<double> visual_x_limit = {0, 0};
     std::vector<double> visual_y_limit = {0, 0};
     if (config["visualization"]) {
@@ -100,6 +101,7 @@ int main(int argc, char** argv) {
         if (config["visualization"]["y_lim"]) {
             visual_y_limit = config["visualization"]["y_lim"].as<std::vector<double>>();
         }
+        show_reference_line = config["visualization"]["show_reference_line"].as<bool>(false);
     }
 
     std::vector<ReferenceLine> borders;
@@ -195,6 +197,10 @@ int main(int argc, char** argv) {
         utils::imshow(outlook_ego, ego_state, vehicle_para);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
             utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);
+        }
+
+        if (show_reference_line) {
+            plt::plot(center_lines[0].x, center_lines[0].y , "-r");
         }
 
         // defualt figure x-y limit

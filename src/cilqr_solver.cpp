@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2024-10-31 00:42:18
+ * @LastEditTime: 2024-11-01 00:26:49
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -166,11 +166,11 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
                                    const Eigen::Vector2d& road_boaders) {
     size_t num_obstacles = obs_preds.size();
     //  part 1: costs included in the prime objective
-    Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
+    Eigen::MatrixX3d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
     Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points, ref_velocitys, ref_yaws;
+    ref_states << ref_exact_points.col(0), ref_exact_points.col(1), ref_velocitys, ref_yaws;
 
     double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).sum();
     double ctrl_energy = (u * ctrl_weight * u.transpose()).sum();
@@ -181,6 +181,7 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
     for (size_t k = 1; k < N + 1; ++k) {
         Eigen::Vector2d u_k = u.row(k - 1);
         Eigen::Vector4d x_k = x.row(k);
+        Eigen::Vector3d ref_x_k = ref_exact_points.row(k);
 
         // acceleration constraints
         double acc_up_constr = get_bound_constr(u_k[0], acc_max, BoundType::UPPER);
@@ -195,8 +196,11 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
         double velo_lo_constr = get_bound_constr(x_k[2], velo_min, BoundType::LOWER);
 
         // y constraints
-        double pos_up_constr = get_bound_constr(x_k[1], road_boaders[0] - width, BoundType::UPPER);
-        double pos_lo_constr = get_bound_constr(x_k[1], road_boaders[1] + width, BoundType::LOWER);
+        double d_sign =
+            (x_k[1] - ref_x_k[1]) * cos(ref_x_k[2]) - (x_k[0] - ref_x_k[0]) * sin(ref_x_k[2]);
+        double cur_d = utils::sign(d_sign) * hypot(x_k[0] - ref_x_k[0], x_k[1] - ref_x_k[1]);
+        double pos_up_constr = get_bound_constr(cur_d, road_boaders[0] - width, BoundType::UPPER);
+        double pos_lo_constr = get_bound_constr(cur_d, road_boaders[1] + width, BoundType::LOWER);
 
         double J_barrier_k = exp_barrier(acc_up_constr, state_exp_q1, state_exp_q2) +
                              exp_barrier(acc_lo_constr, state_exp_q1, state_exp_q2) +
@@ -221,11 +225,11 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
     return J_total;
 }
 
-Eigen::MatrixX2d CILQRSolver::get_ref_exact_points(const Eigen::MatrixX4d& x,
+Eigen::MatrixX3d CILQRSolver::get_ref_exact_points(const Eigen::MatrixX4d& x,
                                                    const ReferenceLine& ref_waypoints) {
     uint16_t x_shape = x.rows();
     uint16_t start_index = 0;
-    Eigen::MatrixX2d ref_exact_points = Eigen::MatrixX2d::Zero(x_shape, 2);
+    Eigen::MatrixX3d ref_exact_points = Eigen::MatrixX3d::Zero(x_shape, 3);
 
     for (uint16_t i = 0; i < x_shape; ++i) {
         int32_t min_idx = -1;
@@ -241,6 +245,7 @@ Eigen::MatrixX2d CILQRSolver::get_ref_exact_points(const Eigen::MatrixX4d& x,
         }
         ref_exact_points(i, 0) = ref_waypoints.x[min_idx];
         ref_exact_points(i, 1) = ref_waypoints.y[min_idx];
+        ref_exact_points(i, 2) = ref_waypoints.yaw[min_idx];
         start_index = min_idx;
     }
 
@@ -392,11 +397,11 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
     // l_ux.setZero(N * nu, nx);
 
     size_t num_obstacles = obs_preds.size();
-    Eigen::MatrixX2d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
+    Eigen::MatrixX3d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
     Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points, ref_velocitys, ref_yaws;
+    ref_states << ref_exact_points.col(0), ref_exact_points.col(1), ref_velocitys, ref_yaws;
 
     // part 1: cost derivatives due to the prime objective
     Eigen::MatrixX2d l_u_prime = 2 * (u * ctrl_weight);
@@ -452,6 +457,7 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
 
         // state: (N + 1) steps
         Eigen::Vector4d x_k = x.row(k);
+        Eigen::Vector3d ref_x_k = ref_exact_points.row(k);
 
         // velocity constraints derivatives and Hessians
         double velo_up_constr = get_bound_constr(x_k[2], velo_max, BoundType::UPPER);
@@ -464,13 +470,22 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
         auto [velo_lo_barrier_over_x, velo_lo_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             velo_lo_constr, velo_lo_constr_over_x, state_exp_q1, state_exp_q2);
 
-        double pos_up_constr = get_bound_constr(x_k[1], road_boaders[0] - width, BoundType::UPPER);
-        Eigen::Vector4d pos_up_constr_over_x = {0, 1, 0, 0};
+        // road boarder constraints derivatives and Hessians
+        double d_sign =
+            (x_k[1] - ref_x_k[1]) * cos(ref_x_k[2]) - (x_k[0] - ref_x_k[0]) * sin(ref_x_k[2]);
+        double cur_d = utils::sign(d_sign) * hypot(x_k[0] - ref_x_k[0], x_k[1] - ref_x_k[1]);
+        double pos_up_constr = get_bound_constr(cur_d, road_boaders[0] - width, BoundType::UPPER);
+        double pos_lo_constr = get_bound_constr(cur_d, road_boaders[1] + width, BoundType::LOWER);
+        Eigen::Vector4d pos_up_constr_over_x = {
+            (x_k[0] - ref_x_k[0]) / hypot(x_k[0] - ref_x_k[0], x_k[1] - ref_x_k[1]),
+            (x_k[1] - ref_x_k[1]) / hypot(x_k[0] - ref_x_k[0], x_k[1] - ref_x_k[1]), 0, 0};
+        if (d_sign < 0) {
+            pos_up_constr_over_x = -1 * pos_up_constr_over_x;
+        }
         auto [pos_up_barrier_over_x, pos_up_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             pos_up_constr, pos_up_constr_over_x, state_exp_q1, state_exp_q2);
 
-        double pos_lo_constr = get_bound_constr(x_k[1], road_boaders[1] + width, BoundType::LOWER);
-        Eigen::Vector4d pos_lo_constr_over_x = {0, -1, 0, 0};
+        Eigen::Vector4d pos_lo_constr_over_x = -1 * pos_up_constr_over_x;
         auto [pos_lo_barrier_over_x, pos_lo_barrier_over_xx] = exp_barrier_derivative_and_Hessian(
             pos_lo_constr, pos_lo_constr_over_x, state_exp_q1, state_exp_q2);
 

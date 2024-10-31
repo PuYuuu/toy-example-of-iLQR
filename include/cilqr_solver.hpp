@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-02 23:26:51
- * @LastEditTime: 2024-10-31 00:42:07
+ * @LastEditTime: 2024-10-31 22:54:39
  * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -42,7 +42,7 @@ class CILQRSolver {
                           const ReferenceLine& ref_waypoints, double ref_velo,
                           const std::vector<RoutingLine>& obs_preds,
                           const Eigen::Vector2d& road_boaders);
-    Eigen::MatrixX2d get_ref_exact_points(const Eigen::MatrixX4d& x,
+    Eigen::MatrixX3d get_ref_exact_points(const Eigen::MatrixX4d& x,
                                           const ReferenceLine& ref_waypoints);
     double get_bound_constr(double variable, double bound, BoundType bound_type);
     Eigen::Vector2d get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,

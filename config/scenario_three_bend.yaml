@@ -2,15 +2,18 @@ max_simulation_time: 15
 delta_t: 0.1
 
 lqr:
-  N: 50
+  N: 30
   nx: 4
   nu: 2
   w_pos: 1.0
-  w_vel: 0.5
-  w_acc: 1.0
-  w_stl: 1.0
-  exp_q1: 0.1
-  exp_q2: 100
+  w_vel: 1.0
+  w_acc: 0.5
+  w_stl: 15.0
+  obstacle_exp_q1: 5.5
+  obstacle_exp_q2: 5.75
+  state_exp_q1: 3.0
+  state_exp_q2: 2.5
+  use_last_solution: false
 
 iteration:
   max_iter: 120
@@ -18,11 +21,10 @@ iteration:
   lamb_decay: 0.7
   lamb_amplify: 2.0
   max_lamb: 10000.0
-  alpha_options: [1., 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125]
-  tol: 0.001
+  tol: 0.00001
 
 vehicle:
-  target_velocity: 5
+  target_velocity: 8
   wheelbase: 3.6
   width: 2
   length: 4.5
@@ -36,14 +38,18 @@ vehicle:
 
 laneline:
   reference:
-    x: [0, 10, 20, 35, 70, 100, 150]
-    y: [1, 0, 5, 6.5, 0, 0, 0]
+    x: [-20, -5, 10, 20, 35, 70, 100, 150]
+    y: [  1,  1,  1, 5, 6.5, 0, 0, 0]
   border: [-1.8, 1.8, 5.4, 9]
   center_line: [0, 3.6, 7.2]
 
 initial_condition:
   # [x, y, v, yaw]
-  - [0, 1, 5, 0]  # ego
-  # - [10, 0, 4, 0.5236]
-  # - [14, 6, 4.5, 0.5236]
-  # - [40, 13, 1, -0.2]
+  - [-10, 1, 4, 0]  # ego
+  - [10, 0, 4, 0.5236]
+  - [25, 10, 4, 0.5236]
+  - [-15, 9, 8, 0]
+
+visualization:
+  y_lim: [-3, 23]
+  show_reference_line: false
