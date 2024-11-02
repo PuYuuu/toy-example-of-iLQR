@@ -1,37 +1,69 @@
 # toy-example-of-iLQR
-iterative Linear Quadratic Regulator practice. For more information, see [LQR与iLQR：从理论到实践【详细】](https://zhuanlan.zhihu.com/p/715102938)
+This repository implements an **C**onstrained **I**terative **L**inear **Q**uadratic **R**egulator (**CILQR**) algorithm that incorporates constraints in the environment for on-road autonomous motion planning. For more information, see [LQR与iLQR：从理论到实践【详细】](https://zhuanlan.zhihu.com/p/715102938)
 
-**[Done]** *~~Currently, the real-time performance of CI-LQR examples is poor, which will be optimized later.~~*
 <div align=center>
   <img src="./images/cilqr-motionplanning_1.gif" width="520"/>
 </div>
 
-## Usage
+## 1. Prerequisites
 
-### 1. mini demo of LQR
+- Tested on WSL2 Ubuntu 20.04🐧
+- Python >= 3.6.10, matplotlib, numpy
+- Other dependencies: [fmt](https://github.com/fmtlib/fmt), [yamp-cpp](https://github.com/jbeder/yaml-cpp)
+
+## 2. Build
+
+Clone the repository and make:
+
+```shell
+git clone https://github.com/PuYuuu/toy-example-of-iLQR.git
+cd toy-example-of-iLQR
+cmake -B build
+cmake --build build
+```
+
+## 3. Execute examples
+
+### 3.1 Basic examples of LQR
+
+You can find the corresponding python script file in the `scripts` folder.
+
+1. **Closed-loop response of linear system under LQR controller**
 
 ```shell
 python scripts/0-lqr-demo.py
 ```
-<div align=center>
-  <img src="./images/mini-lqr.png" width="640"/>
-</div>
 
-### 2. path tracking using LQR
+2. **Path tracking using LQR**
 
-```
+```shell
 python scripts/1-lqr-pathtracking.py
 ```
 
-<div align=center>
-  <img src="./images/lqr-pathtracking.gif" width="360"/>
-</div>
+3. **Simple version of on-road motion planning by CILQR**
 
-### 3. motion planning using CI-LQR
-
-```python
+```shell
 python scripts/2-cilqr-motionplanning.py
 ```
+
+## 3.2 Autonomous driving motion planning with CILQR
+
+Find the executable file in the build folder, and specify the configuration file path through `-c` to start the program.
+
+```shell
+./build/motion_planning -c ./config/scenario_three_bend.yaml
+```
+
 <div align=center>
-  <img src="./images/cilqr-motionplanning.gif" width="520"/>
+  <img src="./images/cilqr-motionplanning_3.gif" width="520"/>
+</div>
+
+In addition, you can manually modify the contents of the configuration file, including algorithm parameters, initial conditions, scenario information, etc., and observe the performance of CILQR in different scenarios. For example:
+
+```
+./build/motion_planning -c config/scenario_three_straight.yaml
+```
+
+<div align=center>
+  <img src="./images/cilqr-motionplanning_2.gif" width="520"/>
 </div>

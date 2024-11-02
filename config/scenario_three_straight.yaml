@@ -1,4 +1,4 @@
-max_simulation_time: 12
+max_simulation_time: 10
 delta_t: 0.1
 
 lqr:
@@ -33,22 +33,27 @@ vehicle:
   yaw_lim: 1.57
   acc_max: 3.0
   acc_min: -3.0
-  stl_lim: 0.2
+  stl_lim: 0.1
   d_safe: 1.8
 
 laneline:
   reference:
     x: [-10, 0, 50, 100, 150, 200]
-    y: [0, 0, 0, 0, 0, 0]
-  border: [-1.8, 1.8, 5.4]
-  center_line: [0, 3.6]
+    y: [7.2, 7.2, 7.2, 7.2, 7.2, 7.2]
+  border: [-9, -5.4, -1.8, 1.8]
+  center_line: [0, -3.6, -7.2]
 
 initial_condition:
   # [x, y, v, yaw]
-  - [0, 0, 8.0, 0]  # ego
-  - [30, 0, 3.0, 0]
-  - [30, 3.6, 5, 0]
-  - [15, 3.6, 3.0, 0]
+  - [0, 0, 6.0, 0]  # ego
+  - [20, 0, 3.0, 0]
+  - [40, 0, 3.0, 0]
+  - [50, 0, 3.0, 0]
+  - [0, 3.6, 5.0, 0]
+  - [35, 3.6, 5.0, 0]
+  - [50, 3.6, 5.0, 0]
+  - [5, 7.2, 7, 0]
+  - [50, 7.2, 6.0, 0]
 
 visualization:
-  y_lim: [-5, 13]
+  y_lim: [-3, 17]
