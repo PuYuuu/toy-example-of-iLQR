@@ -8,7 +8,11 @@ lqr:
   w_pos: 1.0
   w_vel: 1.0
   w_acc: 0.5
-  w_stl: 15.0
+  w_stl: 25.0
+  slove_type: "barrier" # or "alm"
+  alm_rho_init: 20
+  alm_gamma: 0
+  alm_beta: 20
   obstacle_exp_q1: 5.5
   obstacle_exp_q2: 5.75
   state_exp_q1: 3.0

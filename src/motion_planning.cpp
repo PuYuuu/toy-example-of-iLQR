@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-10-30 00:05:14
- * @LastEditTime: 2024-11-01 00:22:57
+ * @LastEditTime: 2024-11-07 01:12:59
  * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -18,6 +18,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -156,13 +157,24 @@ int main(int argc, char** argv) {
             }
         }
         SPDLOG_DEBUG("idx: {}, line_num: {}, start_s: {}", idx, line_num, start_s);
+
         for (double t = 0.0; t < max_simulation_time + 10; t += delta_t) {
             double cur_s = start_s + t * initial_conditions[idx][2];
             cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
             Eigen::Vector3d pos = center_lines[line_num].calc_position(cur_s);
-            routing_lines[idx].x.push_back(pos.x());
-            routing_lines[idx].y.push_back(pos.y());
-            routing_lines[idx].yaw.push_back(pos.z());
+
+            // randomly add noise to other cars
+            // TODO: the current planning results are very sensitive to noise and
+            //       initial conditions, which need to be optimized.
+            if (idx == 0 || Random::uniform(0.0, 1.0) < 0.5) {
+                routing_lines[idx].x.push_back(pos.x());
+                routing_lines[idx].y.push_back(pos.y());
+                routing_lines[idx].yaw.push_back(pos.z());
+            } else {
+                routing_lines[idx].x.push_back(pos.x() + Random::normal(0.0, 0.02));
+                routing_lines[idx].y.push_back(pos.y() + Random::normal(0.0, 0.02));
+                routing_lines[idx].yaw.push_back(pos.z());
+            }
         }
     }
     std::vector<RoutingLine> obs_prediction(routing_lines.begin() + 1, routing_lines.end());
@@ -200,7 +212,7 @@ int main(int argc, char** argv) {
         }
 
         if (show_reference_line) {
-            plt::plot(center_lines[0].x, center_lines[0].y , "-r");
+            plt::plot(center_lines[0].x, center_lines[0].y, "-r");
         }
 
         // defualt figure x-y limit

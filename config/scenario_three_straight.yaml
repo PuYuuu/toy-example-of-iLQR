@@ -8,12 +8,18 @@ lqr:
   w_pos: 1.0
   w_vel: 1.0
   w_acc: 0.5
-  w_stl: 15.0
+  w_stl: 30.0
+  # Solving CILQR using the augmented lagrangian method or the barrier function
+  slove_type: "barrier" # "alm"
+  alm_rho_init: 0
+  alm_gamma: 0
+  alm_beta: 20
+  # barrier function parameters: c(x) = q1 * exp(q2 * x)
   obstacle_exp_q1: 5.5
   obstacle_exp_q2: 5.75
   state_exp_q1: 3.0
   state_exp_q2: 2.5
-  use_last_solution: false
+  use_last_solution: true
 
 iteration:
   max_iter: 120
@@ -33,7 +39,7 @@ vehicle:
   yaw_lim: 1.57
   acc_max: 3.0
   acc_min: -3.0
-  stl_lim: 0.1
+  stl_lim: 0.12
   d_safe: 1.8
 
 laneline:

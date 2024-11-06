@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:28
- * @LastEditTime: 2024-10-31 00:41:55
+ * @LastEditTime: 2024-11-07 01:13:37
  * @FilePath: /toy-example-of-iLQR/include/utils.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -21,6 +21,7 @@
 #include <cmath>
 #include <filesystem>
 #include <numeric>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -83,6 +84,21 @@ class TicToc {
 
   private:
     std::chrono::time_point<std::chrono::system_clock> start, end;
+};
+
+class Random {
+  private:
+    static std::default_random_engine engine;
+
+    Random() = delete;
+    Random(const Random&) = delete;
+    Random& operator=(const Random&) = delete;
+    Random(Random&&) = delete;
+    Random& operator=(Random&&) = delete;
+
+  public:
+    static double uniform(double _min, double _max);
+    static double normal(double _mean, double _std);
 };
 
 namespace utils {
@@ -240,7 +256,8 @@ std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     uint32_t steps);
 std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
     const Eigen::Vector4d& state, double wheelbase);
-std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>> get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
+std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>>
+get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr);
 double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,

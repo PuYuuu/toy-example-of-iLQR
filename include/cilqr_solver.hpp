@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-02 23:26:51
- * @LastEditTime: 2024-10-31 22:54:39
+ * @LastEditTime: 2024-11-07 01:20:09
  * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -19,6 +19,7 @@
 #include <vector>
 
 enum class BoundType { UPPER, LOWER };
+enum class SolveType { BARRIER, ALM };
 
 class CILQRSolver {
   public:
@@ -48,9 +49,10 @@ class CILQRSolver {
     Eigen::Vector2d get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,
                                                   const Eigen::Vector3d& obs_state);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> iter_step(
-        const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double cost, double lamb,
+        const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
-        const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders);
+        const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders,
+        bool& effective_flag);
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> backward_pass(
         const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
         const ReferenceLine& ref_waypoints, double ref_velo,
@@ -68,8 +70,13 @@ class CILQRSolver {
                                                  const Eigen::Vector2d& road_boaders);
 
     double exp_barrier(double c, double q1, double q2) { return q1 * exp(q2 * c); }
+    double augmented_lagrangian_item(double c, double rho, double mu) {
+        return rho * pow(std::max(c + mu / rho, 0.0), 2) / 2;
+    }
     std::tuple<Eigen::VectorXd, Eigen::MatrixXd> exp_barrier_derivative_and_Hessian(
         double c, Eigen::MatrixXd c_dot, double q1, double q2);
+    std::tuple<Eigen::VectorXd, Eigen::MatrixXd> lagrangian_derivative_and_Hessian(
+        double c, Eigen::MatrixXd c_dot, double rho, double mu);
     std::tuple<Eigen::Vector4d, Eigen::Vector4d> get_obstacle_avoidance_constr_derivatives(
         const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state);
 
@@ -85,6 +92,15 @@ class CILQRSolver {
     double state_exp_q1;
     double state_exp_q2;
     bool use_last_solution;
+    SolveType solve_type;
+
+    //  augmented lagrangian method settings
+    double alm_rho;
+    double alm_rho_init;
+    double alm_gamma;
+    double alm_beta;
+    Eigen::MatrixXd alm_mu;
+    Eigen::MatrixXd alm_mu_next;
 
     // iteration-related settings
     uint32_t max_iter;

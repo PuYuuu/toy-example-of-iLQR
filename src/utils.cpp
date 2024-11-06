@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:39
- * @LastEditTime: 2024-10-31 00:42:40
+ * @LastEditTime: 2024-11-07 01:13:26
  * @FilePath: /toy-example-of-iLQR/src/utils.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -64,6 +64,23 @@ Eigen::Vector3d ReferenceLine::calc_position(double cur_s) {
     double ly = pos.y() + delta_d * cos(lyaw);
 
     return {lx, ly, lyaw};
+}
+
+std::default_random_engine Random::engine(std::random_device{}());
+
+double Random::uniform(double _min, double _max) {
+    std::uniform_real_distribution<double> dist(_min, _max);
+    return dist(Random::engine);
+}
+
+double Random::normal(double _mean, double _std) {
+    std::normal_distribution<double> dist(_mean, _std);
+    double random_value = dist(Random::engine);
+    while (random_value > 3 * _std) {
+        random_value = dist(Random::engine);
+    }
+
+    return random_value;
 }
 
 namespace utils {
