@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-02 23:26:51
- * @LastEditTime: 2024-11-07 01:20:09
+ * @LastEditTime: 2024-11-08 00:16:46
  * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -98,7 +98,8 @@ class CILQRSolver {
     double alm_rho;
     double alm_rho_init;
     double alm_gamma;
-    double alm_beta;
+    double max_rho;
+    double max_mu;
     Eigen::MatrixXd alm_mu;
     Eigen::MatrixXd alm_mu_next;
 

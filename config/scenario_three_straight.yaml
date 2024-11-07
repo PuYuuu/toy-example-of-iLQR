@@ -13,20 +13,21 @@ lqr:
   slove_type: "barrier" # "alm"
   alm_rho_init: 0
   alm_gamma: 0
-  alm_beta: 20
+  max_rho: 20
+  max_mu: 100
   # barrier function parameters: c(x) = q1 * exp(q2 * x)
   obstacle_exp_q1: 5.5
   obstacle_exp_q2: 5.75
   state_exp_q1: 3.0
-  state_exp_q2: 2.5
-  use_last_solution: true
+  state_exp_q2: 3.6
+  use_last_solution: false
 
 iteration:
   max_iter: 120
   init_lamb: 20
   lamb_decay: 0.7
   lamb_amplify: 2.0
-  max_lamb: 10000.0
+  max_lamb: 100000.0
   tol: 0.00001
 
 vehicle:

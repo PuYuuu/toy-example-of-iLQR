@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2024-11-07 01:20:53
+ * @LastEditTime: 2024-11-08 00:37:24
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -46,7 +46,8 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
     } else if (solve_type == SolveType::ALM) {
         alm_rho_init = planner_params["alm_rho_init"].as<double>(1.0);
         alm_gamma = planner_params["alm_gamma"].as<double>(0.0);
-        alm_beta = planner_params["alm_beta"].as<double>(1000.0);
+        max_rho = planner_params["max_rho"].as<double>(100.0);
+        max_mu = planner_params["max_mu"].as<double>(1000.0);
     }
 
     YAML::Node iteration_params = cfg["iteration"];
@@ -79,7 +80,8 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
 std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     const Eigen::Vector4d& x0, const ReferenceLine& ref_waypoints, double ref_velo,
     const std::vector<RoutingLine>& obs_preds, const Eigen::Vector2d& road_boaders) {
-    if (is_first_solve && solve_type == SolveType::ALM) {
+    if (solve_type == SolveType::ALM &&
+        (!use_last_solution || (use_last_solution && is_first_solve))) {
         alm_rho = alm_rho_init;
         alm_mu = Eigen::MatrixXd::Zero(N, 8 + 2 * obs_preds.size());
         alm_mu_next = Eigen::MatrixXd::Zero(N, 8 + 2 * obs_preds.size());
@@ -105,7 +107,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
         if (iter_effective_flag) {
             x = new_x;
             u = new_u;
-            if (abs(new_J - J) < tol) {
+            if (abs(new_J - J) / J < tol || abs(new_J - J) < tol) {
                 SPDLOG_INFO("Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J);
                 is_exceed_max_itr = false;
                 break;
@@ -349,7 +351,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
     }
 
     alm_mu = alm_mu_next;
-    alm_rho = std::min((1 + alm_gamma) * alm_rho, alm_beta);
+    alm_rho = std::min((1 + alm_gamma) * alm_rho, max_rho);
 
     return std::make_tuple(new_u, new_x, new_J);
 }
@@ -584,14 +586,22 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
                 lagrangian_derivative_and_Hessian(pos_lo_constr, pos_lo_constr_over_x, alm_rho,
                                                   alm_mu(k - 1, 7));
 
-            alm_mu_next(k - 1, 0) = std::max(alm_mu(k - 1, 0) + alm_rho * acc_up_constr, 0.0);
-            alm_mu_next(k - 1, 1) = std::max(alm_mu(k - 1, 1) + alm_rho * acc_lo_constr, 0.0);
-            alm_mu_next(k - 1, 2) = std::max(alm_mu(k - 1, 2) + alm_rho * stl_up_constr, 0.0);
-            alm_mu_next(k - 1, 3) = std::max(alm_mu(k - 1, 3) + alm_rho * stl_lo_constr, 0.0);
-            alm_mu_next(k - 1, 4) = std::max(alm_mu(k - 1, 4) + alm_rho * velo_up_constr, 0.0);
-            alm_mu_next(k - 1, 5) = std::max(alm_mu(k - 1, 5) + alm_rho * velo_lo_constr, 0.0);
-            alm_mu_next(k - 1, 6) = std::max(alm_mu(k - 1, 6) + alm_rho * pos_up_constr, 0.0);
-            alm_mu_next(k - 1, 7) = std::max(alm_mu(k - 1, 7) + alm_rho * pos_lo_constr, 0.0);
+            alm_mu_next(k - 1, 0) =
+                std::min(std::max(alm_mu(k - 1, 0) + alm_rho * acc_up_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 1) =
+                std::min(std::max(alm_mu(k - 1, 1) + alm_rho * acc_lo_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 2) =
+                std::min(std::max(alm_mu(k - 1, 2) + alm_rho * stl_up_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 3) =
+                std::min(std::max(alm_mu(k - 1, 3) + alm_rho * stl_lo_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 4) =
+                std::min(std::max(alm_mu(k - 1, 4) + alm_rho * velo_up_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 5) =
+                std::min(std::max(alm_mu(k - 1, 5) + alm_rho * velo_lo_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 6) =
+                std::min(std::max(alm_mu(k - 1, 6) + alm_rho * pos_up_constr, 0.0), max_mu);
+            alm_mu_next(k - 1, 7) =
+                std::min(std::max(alm_mu(k - 1, 7) + alm_rho * pos_lo_constr, 0.0), max_mu);
 
             l_x_barrier.row(k) = velo_up_barrier_over_x + velo_lo_barrier_over_x +
                                  pos_up_barrier_over_x + pos_lo_barrier_over_x;
@@ -627,10 +637,10 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
                     lagrangian_derivative_and_Hessian(obs_j_constr[1], obs_j_rear_constr_over_x,
                                                       alm_rho, alm_mu(k - 1, 9 + 2 * j));
 
-                alm_mu_next(k - 1, 8 + 2 * j) =
-                    std::max(alm_mu(k - 1, 8 + 2 * j) + alm_rho * obs_j_constr[0], 0.0);
-                alm_mu_next(k - 1, 9 + 2 * j) =
-                    std::max(alm_mu(k - 1, 9 + 2 * j) + alm_rho * obs_j_constr[1], 0.0);
+                alm_mu_next(k - 1, 8 + 2 * j) = std::min(
+                    std::max(alm_mu(k - 1, 8 + 2 * j) + alm_rho * obs_j_constr[0], 0.0), max_mu);
+                alm_mu_next(k - 1, 9 + 2 * j) = std::min(
+                    std::max(alm_mu(k - 1, 9 + 2 * j) + alm_rho * obs_j_constr[1], 0.0), max_mu);
 
                 l_x_barrier.row(k) += (obs_j_front_barrier_over_x + obs_j_rear_barrier_over_x);
                 l_xx_barrier.block(nx * k, 0, nx, nx) +=

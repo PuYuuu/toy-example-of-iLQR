@@ -12,11 +12,12 @@ lqr:
   slove_type: "barrier" # or "alm"
   alm_rho_init: 20
   alm_gamma: 0
-  alm_beta: 20
+  max_rho: 20
+  max_mu: 100
   obstacle_exp_q1: 5.5
   obstacle_exp_q2: 5.75
   state_exp_q1: 3.0
-  state_exp_q2: 2.5
+  state_exp_q2: 3.5
   use_last_solution: false
 
 iteration:
@@ -24,7 +25,7 @@ iteration:
   init_lamb: 20
   lamb_decay: 0.7
   lamb_amplify: 2.0
-  max_lamb: 10000.0
+  max_lamb: 100000.0
   tol: 0.00001
 
 vehicle:

@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:39
- * @LastEditTime: 2024-11-07 01:13:26
+ * @LastEditTime: 2024-11-07 23:30:46
  * @FilePath: /toy-example-of-iLQR/src/utils.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -76,7 +76,7 @@ double Random::uniform(double _min, double _max) {
 double Random::normal(double _mean, double _std) {
     std::normal_distribution<double> dist(_mean, _std);
     double random_value = dist(Random::engine);
-    while (random_value > 3 * _std) {
+    while ((random_value > 3 * _std) || (random_value < -3 * _std)) {
         random_value = dist(Random::engine);
     }
 
