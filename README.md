@@ -2,7 +2,7 @@
 This repository implements an **C**onstrained **I**terative **L**inear **Q**uadratic **R**egulator (**CILQR**) algorithm that incorporates constraints in the environment for on-road autonomous motion planning. For more information, see [LQR与iLQR：从理论到实践【详细】](https://zhuanlan.zhihu.com/p/715102938)
 
 <div align=center>
-  <img src="./images/cilqr-motionplanning_1.gif" width="520"/>
+  <img src="./images/scenario_two_straight.gif" width="520"/>
 </div>
 
 ## 1. Prerequisites
@@ -46,7 +46,7 @@ python scripts/1-lqr-pathtracking.py
 python scripts/2-cilqr-motionplanning.py
 ```
 
-## 3.2 Autonomous driving motion planning with CILQR
+### 3.2 Autonomous driving motion planning with CILQR
 
 Find the executable file in the build folder, and specify the configuration file path through `-c` to start the program.
 
@@ -55,7 +55,7 @@ Find the executable file in the build folder, and specify the configuration file
 ```
 
 <div align=center>
-  <img src="./images/cilqr-motionplanning_3.gif" width="520"/>
+  <img src="./images/scenario_three_bend.gif" width="520"/>
 </div>
 
 In addition, you can manually modify the contents of the configuration file, including algorithm parameters, initial conditions, scenario information, etc., and observe the performance of CILQR in different scenarios. For example:
@@ -65,5 +65,5 @@ In addition, you can manually modify the contents of the configuration file, inc
 ```
 
 <div align=center>
-  <img src="./images/cilqr-motionplanning_2.gif" width="520"/>
+  <img src="./images/scenario_three_straight.gif" width="520"/>
 </div>

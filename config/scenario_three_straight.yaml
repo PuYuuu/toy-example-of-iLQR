@@ -35,7 +35,7 @@ vehicle:
   wheelbase: 3.6
   width: 2
   length: 4.5
-  velo_max: 15.0
+  velo_max: 10.0
   velo_min: 0.0
   yaw_lim: 1.57
   acc_max: 3.0
