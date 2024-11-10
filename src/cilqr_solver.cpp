@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2024-11-08 00:37:24
+ * @LastEditTime: 2024-11-10 21:42:41
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -25,6 +25,7 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
     state_weight(0, 0) = planner_params["w_pos"].as<double>();
     state_weight(1, 1) = planner_params["w_pos"].as<double>();
     state_weight(2, 2) = planner_params["w_vel"].as<double>();
+    state_weight(3, 3) = planner_params["w_yaw"].as<double>();
     ctrl_weight = Eigen::Matrix2d::Zero();
     ctrl_weight(0, 0) = planner_params["w_acc"].as<double>();
     ctrl_weight(1, 1) = planner_params["w_stl"].as<double>();
@@ -108,7 +109,10 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
             x = new_x;
             u = new_u;
             if (abs(new_J - J) / J < tol || abs(new_J - J) < tol) {
-                SPDLOG_INFO("Tolerance condition satisfied. itr: {}, final cost: {:.3f}", itr, J);
+                SPDLOG_INFO(
+                    "Tolerance condition satisfied. itr: {}, final cost: {:.3f}, solve cost time "
+                    "{:.2f} ms",
+                    itr, J, solve_time.toc() * 1000);
                 is_exceed_max_itr = false;
                 break;
             }
@@ -120,8 +124,9 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
 
             if (lamb > max_lamb) {
                 SPDLOG_WARN(
-                    "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}",
-                    itr, J);
+                    "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}, "
+                    "solve cost time {:.2f} ms",
+                    itr, J, solve_time.toc() * 1000);
                 is_exceed_max_itr = false;
                 break;
             }
@@ -190,9 +195,9 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
     //  part 1: costs included in the prime objective
     Eigen::MatrixX3d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
-    Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points.col(0), ref_exact_points.col(1), ref_velocitys, ref_yaws;
+    ref_states << ref_exact_points.block(0, 0, ref_exact_points.rows(), 2), ref_velocitys,
+        ref_exact_points.col(2);
 
     double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).sum();
     double ctrl_energy = (u * ctrl_weight * u.transpose()).sum();
@@ -450,9 +455,9 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
     size_t num_obstacles = obs_preds.size();
     Eigen::MatrixX3d ref_exact_points = get_ref_exact_points(x, ref_waypoints);
     Eigen::VectorXd ref_velocitys = Eigen::VectorXd::Constant(N + 1, ref_velo);
-    Eigen::VectorXd ref_yaws = Eigen::VectorXd::Zero(N + 1);
     Eigen::MatrixX4d ref_states(N + 1, 4);
-    ref_states << ref_exact_points.col(0), ref_exact_points.col(1), ref_velocitys, ref_yaws;
+    ref_states << ref_exact_points.block(0, 0, ref_exact_points.rows(), 2), ref_velocitys,
+        ref_exact_points.col(2);
 
     // part 1: cost derivatives due to the prime objective
     Eigen::MatrixX2d l_u_prime = 2 * (u * ctrl_weight);

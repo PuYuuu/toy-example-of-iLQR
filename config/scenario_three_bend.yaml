@@ -7,6 +7,7 @@ lqr:
   nu: 2
   w_pos: 1.0
   w_vel: 1.0
+  w_yaw: 20.0
   w_acc: 0.5
   w_stl: 25.0
   slove_type: "barrier" # or "alm"
@@ -21,7 +22,7 @@ lqr:
   use_last_solution: false
 
 iteration:
-  max_iter: 120
+  max_iter: 100
   init_lamb: 20
   lamb_decay: 0.7
   lamb_amplify: 2.0
