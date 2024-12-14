@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-10-30 00:05:14
- * @LastEditTime: 2024-11-07 01:12:59
+ * @LastEditTime: 2024-12-14 20:08:53
  * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -159,9 +159,20 @@ int main(int argc, char** argv) {
         SPDLOG_DEBUG("idx: {}, line_num: {}, start_s: {}", idx, line_num, start_s);
 
         for (double t = 0.0; t < max_simulation_time + 10; t += delta_t) {
-            double cur_s = start_s + t * initial_conditions[idx][2];
-            cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
-            Eigen::Vector3d pos = center_lines[line_num].calc_position(cur_s);
+            double cur_s = 0.;
+            Eigen::Vector3d pos;
+            // The current laneline does not have the attribute of driving direction,
+            // and it is simply deduced by the yaw in the initial condition.
+            if (initial_conditions[idx][3] <= M_PI_2) {
+                cur_s = start_s + t * initial_conditions[idx][2];
+                cur_s = std::min(cur_s, center_lines[line_num].longitude.back());
+                pos = center_lines[line_num].calc_position(cur_s);
+            } else {
+                cur_s = start_s - t * initial_conditions[idx][2];
+                cur_s = std::max(cur_s, center_lines[line_num].longitude.front());
+                pos = center_lines[line_num].calc_position(cur_s);
+                pos.z() = fmod(pos.z() + M_PI, 2 * M_PI);
+            }
 
             // randomly add noise to other cars
             // TODO: the current planning results are very sensitive to noise and
