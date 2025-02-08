@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:28
- * @LastEditTime: 2024-11-07 01:13:37
+ * @LastEditTime: 2025-02-08 23:19:37
  * @FilePath: /toy-example-of-iLQR/include/utils.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -24,6 +24,8 @@
 #include <random>
 #include <string>
 #include <vector>
+
+enum class ReferencePoint { RearCenter, GravityCenter };
 
 class ReferenceLine {
   public:
@@ -243,21 +245,25 @@ class TicToc {
     std::chrono::time_point<std::chrono::system_clock> start, end;
 };
 
-// std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors);
 bool imread(std::string filename, Outlook& outlook);
-void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para);
-void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para);
 void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);
+void show_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
+                  ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
+void show_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
+                  ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
 
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
-                                    double dt, double wheelbase);
+                                    double dt, double wheelbase,
+                                    ReferencePoint ref_point = ReferencePoint::GravityCenter);
 std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     const Eigen::MatrixX4d& x, const Eigen::MatrixX2d& u, double dt, double wheelbase,
-    uint32_t steps);
+    uint32_t steps, ReferencePoint ref_point = ReferencePoint::GravityCenter);
 std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
-    const Eigen::Vector4d& state, double wheelbase);
+    const Eigen::Vector4d& state, double wheelbase,
+    ReferencePoint ref_point = ReferencePoint::GravityCenter);
 std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>>
-get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase);
+get_vehicle_front_and_rear_center_derivatives(
+    double yaw, double wheelbase, ReferencePoint ref_point = ReferencePoint::GravityCenter);
 Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
                                               const Eigen::Vector3d& obs_attr);
 double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,

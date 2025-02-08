@@ -70,6 +70,12 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
     acc_min = ego_veh_params["acc_min"].as<double>();
     stl_lim = ego_veh_params["stl_lim"].as<double>();
     double d_safe = ego_veh_params["d_safe"].as<double>();
+    std::string reference_point_string =
+        ego_veh_params["reference_point"].as<std::string>("gravity_center");
+    reference_point = ReferencePoint::GravityCenter;
+    if (reference_point_string == "rear_center") {
+        reference_point = ReferencePoint::RearCenter;
+    }
 
     obs_attr = {width, length, d_safe};
     l_xu.setZero(N * nx, nu);
@@ -162,8 +168,8 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::get_init_traj_increm
     init_x.row(0) = x0;
     Eigen::Vector4d cur_x = x0;
     for (size_t i = 0; i < N; ++i) {
-        Eigen::Vector4d next_x =
-            utils::kinematic_propagate(cur_x, init_u.row(i).transpose(), dt, wheelbase);
+        Eigen::Vector4d next_x = utils::kinematic_propagate(cur_x, init_u.row(i).transpose(), dt,
+                                                            wheelbase, reference_point);
         cur_x = next_x;
         init_x.row(i + 1) = next_x;
     }
@@ -179,7 +185,8 @@ Eigen::MatrixX4d CILQRSolver::const_velo_prediction(const Eigen::Vector4d& x0, s
     predicted_states.row(0) = x0;
     Eigen::Vector4d cur_x = x0;
     for (size_t i = 0; i < steps; ++i) {
-        Eigen::Vector4d next_x = utils::kinematic_propagate(cur_x, cur_u, dt, wheelbase);
+        Eigen::Vector4d next_x =
+            utils::kinematic_propagate(cur_x, cur_u, dt, wheelbase, reference_point);
         cur_x = next_x;
         predicted_states.row(i + 1) = next_x;
     }
@@ -316,7 +323,8 @@ double CILQRSolver::get_bound_constr(double variable, double bound, BoundType bo
 
 Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d& ego_state,
                                                            const Eigen::Vector3d& obs_state) {
-    auto [ego_front, ego_rear] = utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
+    auto [ego_front, ego_rear] =
+        utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase, reference_point);
     Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
     double front_safety_margin = utils::ellipsoid_safety_margin(ego_front, obs_state, ellipse_ab);
     double rear_safety_margin = utils::ellipsoid_safety_margin(ego_rear, obs_state, ellipse_ab);
@@ -366,7 +374,8 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> CILQRSolver::bac
     const ReferenceLine& ref_waypoints, double ref_velo, const std::vector<RoutingLine>& obs_preds,
     const Eigen::Vector2d& road_boaders) {
     get_total_cost_derivatives_and_Hessians(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
-    auto [df_dx, df_du] = utils::get_kinematic_model_derivatives(x, u, dt, wheelbase, N);
+    auto [df_dx, df_du] =
+        utils::get_kinematic_model_derivatives(x, u, dt, wheelbase, N, reference_point);
 
     Eigen::Vector2d delta_V = {0.0, 0.0};
     Eigen::MatrixX2d d = Eigen::MatrixX2d::Zero(N, nu);
@@ -433,7 +442,8 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::forward_pass(const E
                                   K.block(nu * i, 0, 2, 4) * (new_x.row(i) - x.row(i)).transpose() +
                                   alpha * d.row(i).transpose();
         new_u.row(i) = new_u_i;
-        new_x.row(i + 1) = utils::kinematic_propagate(new_x.row(i), new_u_i, dt, wheelbase);
+        new_x.row(i + 1) =
+            utils::kinematic_propagate(new_x.row(i), new_u_i, dt, wheelbase, reference_point);
     }
 
     return std::tuple(new_u, new_x);
@@ -686,7 +696,8 @@ std::tuple<Eigen::VectorXd, Eigen::MatrixXd> CILQRSolver::lagrangian_derivative_
 
 std::tuple<Eigen::Vector4d, Eigen::Vector4d> CILQRSolver::get_obstacle_avoidance_constr_derivatives(
     const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state) {
-    auto [ego_front, ego_rear] = utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase);
+    auto [ego_front, ego_rear] =
+        utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase, reference_point);
     Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
 
     // safety margin over ego front and rear points
@@ -697,7 +708,8 @@ std::tuple<Eigen::Vector4d, Eigen::Vector4d> CILQRSolver::get_obstacle_avoidance
 
     // ego front and rear points over state
     auto [ego_front_over_state, ego_rear_over_state] =
-        utils::get_vehicle_front_and_rear_center_derivatives(ego_state[3], wheelbase);
+        utils::get_vehicle_front_and_rear_center_derivatives(ego_state[3], wheelbase,
+                                                             reference_point);
 
     // chain together
     Eigen::Vector4d front_safety_margin_over_state =

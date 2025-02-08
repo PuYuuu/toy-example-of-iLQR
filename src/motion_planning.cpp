@@ -86,6 +86,13 @@ int main(int argc, char** argv) {
         config["laneline"]["center_line"].as<std::vector<double>>();
     std::vector<std::vector<double>> initial_conditions =
         config["initial_condition"].as<std::vector<std::vector<double>>>();
+    double wheelbase = config["vehicle"]["wheelbase"].as<double>();
+    std::string reference_point_string =
+        config["vehicle"]["reference_point"].as<std::string>("gravity_center");
+    ReferencePoint reference_point = ReferencePoint::GravityCenter;
+    if (reference_point_string == "rear_center") {
+        reference_point = ReferencePoint::RearCenter;
+    }
     double VEHICLE_WIDTH = config["vehicle"]["width"].as<double>();
     double VEHICLE_HEIGHT = config["vehicle"]["length"].as<double>();
     double ACC_MAX = config["vehicle"]["acc_max"].as<double>();
@@ -217,9 +224,10 @@ int main(int argc, char** argv) {
         std::vector<std::vector<double>> closed_curve = utils::get_closed_curve(boarder);
         plt::fill(closed_curve[0], closed_curve[1], {{"color", "cyan"}, {"alpha", "0.7"}});
 
-        utils::imshow(outlook_ego, ego_state, vehicle_para);
+        utils::show_vehicle(outlook_ego, ego_state, vehicle_para, reference_point, wheelbase);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
-            utils::imshow(outlook_agent, routing_lines[idx][index], vehicle_para);
+            utils::show_vehicle(outlook_agent, routing_lines[idx][index], vehicle_para,
+                                reference_point, wheelbase);
         }
 
         if (show_reference_line) {
@@ -240,9 +248,9 @@ int main(int argc, char** argv) {
             visual_y_max = visual_y_limit[1];
         }
 
-        Eigen::Vector3d outlook_steer_pos = {visual_x_min + steer_size / 1.5,
-                                             visual_y_max - steer_size / 1.5,
-                                             new_u.row(0)[1] * 2.5};
+        std::vector<double> outlook_steer_pos = {visual_x_min + steer_size / 1.5,
+                                                 visual_y_max - steer_size / 1.5,
+                                                 new_u.row(0)[1] * 2.5};
         utils::imshow(outlook_steering, outlook_steer_pos, {steer_size, steer_size});
         double acc = new_u.row(0)[0] > 0 ? new_u.row(0)[0] : 0;
         double brake = new_u.row(0)[0] > 0 ? 0 : -new_u.row(0)[0];

@@ -32,7 +32,7 @@ iteration:
   tol: 0.00001
 
 vehicle:
-  target_velocity: 8
+  target_velocity: 9
   wheelbase: 3.6
   width: 2
   length: 4.5

@@ -9,7 +9,7 @@ lqr:
   w_vel: 1.0
   w_yaw: 20.0
   w_acc: 0.5
-  w_stl: 20.0
+  w_stl: 50.0
   # Solving CILQR using the augmented lagrangian method or the barrier function
   slove_type: "alm" # or "barrier"
   alm_rho_init: 20
@@ -32,6 +32,7 @@ iteration:
   tol: 0.00001
 
 vehicle:
+  reference_point: "gravity_center" # rear_center or gravity_center
   target_velocity: 8
   wheelbase: 3.6
   width: 2
@@ -42,7 +43,7 @@ vehicle:
   acc_max: 3.0
   acc_min: -3.0
   stl_lim: 0.12
-  d_safe: 1.8
+  d_safe: 2.0
 
 laneline:
   reference:
@@ -56,8 +57,8 @@ initial_condition:
   - [0, 0, 8.0, 0]  # ego
   - [20, 0, 3.0, 0]
   - [30, 0, 6.5, 0]
-  - [35, 3.6, 5.0, 3.1416]
-  - [67, 3.6, 3.0, 3.1416]
+  - [35, 3.6, 8.0, 3.1416]
+  - [80, 3.6, 3.5, 3.1416]
 
 visualization:
   y_lim: [-5, 13]

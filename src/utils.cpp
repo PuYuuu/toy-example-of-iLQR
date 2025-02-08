@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:39
- * @LastEditTime: 2024-11-07 23:30:46
+ * @LastEditTime: 2025-02-08 23:27:45
  * @FilePath: /toy-example-of-iLQR/src/utils.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -85,38 +85,6 @@ double Random::normal(double _mean, double _std) {
 
 namespace utils {
 
-// std::vector<float> imread(std::string filename, int& rows, int& cols, int& colors) {
-//     std::vector<float> image;
-//     std::ifstream file(filename);
-
-//     if (!file.is_open()) {
-//         SPDLOG_ERROR("open {} failed !", filename);
-//         return image;
-//     }
-
-//     std::string line;
-//     getline(file, line);
-//     if (line != "Convert from PNG") {
-//         SPDLOG_ERROR("this format is not supported: {}", filename);
-//         return image;
-//     }
-//     getline(file, line);
-//     std::istringstream iss(line);
-//     iss >> rows >> cols >> colors;
-//     image.resize(rows * cols * colors);
-//     int idx = 0;
-//     while (getline(file, line)) {
-//         std::istringstream iss(line);
-//         for (int i = 0; i < colors; ++i) {
-//             iss >> image[idx++];
-//         }
-//     }
-//     file.close();
-
-//     // directly return will trigger RVO (Return Value Optimization)
-//     return std::move(image);
-// }
-
 bool imread(std::string filename, Outlook& outlook) {
     std::ifstream file(filename);
 
@@ -148,17 +116,26 @@ bool imread(std::string filename, Outlook& outlook) {
 }
 
 // state: [x y v yaw]
-void imshow(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para) {
-    std::vector<double> state_vector = {state[0], state[1], state[3]};
-    std::vector<double> para_vector = {para[0], para[1]};
+void show_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
+                  ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
+                  double ws /* = 0.*/) {
+    Eigen::Vector3d state_convert;
+    state_convert << state[0], state[1], state[3];
 
-    imshow(out, state_vector, para_vector);
+    show_vehicle(out, state_convert, para, ref_point, ws);
 }
 
 // state: [x y yaw]
-void imshow(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para) {
+void show_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
+                  ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
+                  double ws /* = 0.*/) {
     std::vector<double> state_vector = {state[0], state[1], state[2]};
     std::vector<double> para_vector = {para[0], para[1]};
+
+    if (ref_point == ReferencePoint::RearCenter) {
+        state_vector[0] += 0.5 * ws * cos(state[2]);
+        state_vector[1] += 0.5 * ws * sin(state[2]);
+    }
 
     imshow(out, state_vector, para_vector);
 }
@@ -210,16 +187,24 @@ void imshow(const Outlook& out, const std::vector<double>& state, const std::vec
     }
 }
 
-Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
-                                    double dt, double wheelbase) {
+Eigen::Vector4d kinematic_propagate(
+    const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u, double dt, double wheelbase,
+    ReferencePoint ref_point /* = ReferencePoint::GravityCenter */) {
     double beta = atan(tan(cur_u[1] / 2));
     Eigen::Vector4d next_x;
 
     // clang-format off
-    next_x << cur_x[0] + cur_x[2] * cos(beta + cur_x[3]) * dt,
-              cur_x[1] + cur_x[2] * sin(beta + cur_x[3]) * dt,
-              cur_x[2] + cur_u[0] * dt,
-              cur_x[3] + 2 * cur_x[2] * sin(beta) * dt / wheelbase;
+    if (ref_point == ReferencePoint::RearCenter) {
+        next_x << cur_x[0] + cur_x[2] * cos(cur_x[3]) * dt,
+                  cur_x[1] + cur_x[2] * sin(cur_x[3]) * dt,
+                  cur_x[2] + cur_u[0] * dt,
+                  cur_x[3] + cur_x[2] * tan(cur_u[1]) * dt / wheelbase;
+    } else {
+        next_x << cur_x[0] + cur_x[2] * cos(beta + cur_x[3]) * dt,
+                  cur_x[1] + cur_x[2] * sin(beta + cur_x[3]) * dt,
+                  cur_x[2] + cur_u[0] * dt,
+                  cur_x[3] + 2 * cur_x[2] * sin(beta) * dt / wheelbase;
+    }
     // clang-format on
 
     return next_x;
@@ -227,9 +212,10 @@ Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::V
 
 std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
     const Eigen::MatrixX4d& x, const Eigen::MatrixX2d& u, double dt, double wheelbase,
-    uint32_t steps) {
+    uint32_t steps, ReferencePoint ref_point /* = ReferencePoint::GravityCenter */) {
     Eigen::VectorXd N_velo = x.col(2).head(steps);
     Eigen::VectorXd N_yaw = x.col(3).head(steps);
+    Eigen::VectorXd N_delta = u.col(1).head(steps);
     Eigen::VectorXd N_beta = (u.col(1) / 2).array().tan().atan();
     Eigen::VectorXd N_beta_over_stl =
         0.5 * (1 + u.col(1).array().tan().square()) / (1 + 0.25 * u.col(1).array().tan().square());
@@ -253,47 +239,75 @@ std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
 
     for (uint32_t i = 0; i < steps; ++i) {
         df_dx.block<4, 4>(i * 4, 0).setIdentity();
-        df_dx(i * 4, 2) = cos(N_beta[i] + N_yaw[i]) * dt;
-        df_dx(i * 4, 3) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt;
-        df_dx(i * 4 + 1, 2) = sin(N_beta[i] + N_yaw[i]) * dt;
-        df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt;
-        df_dx(i * 4 + 3, 2) = 2 * sin(N_beta[i]) * dt / wheelbase;
-
         df_du.block<4, 2>(i * 4, 0).setZero();
-        df_du(i * 4, 1) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt * N_beta_over_stl[i];
-        df_du(i * 4 + 1, 1) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt * N_beta_over_stl[i];
-        df_du(i * 4 + 2, 0) = dt;
-        df_du(i * 4 + 3, 1) =
-            (2 * N_velo[i] * dt / wheelbase) * cos(N_beta[i]) * N_beta_over_stl[i];
+
+        if (ref_point == ReferencePoint::RearCenter) {
+            df_dx(i * 4, 2) = cos(N_yaw[i]) * dt;
+            df_dx(i * 4, 3) = N_velo[i] * (-sin(N_yaw[i])) * dt;
+            df_dx(i * 4 + 1, 2) = sin(N_yaw[i]) * dt;
+            df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_yaw[i]) * dt;
+            df_dx(i * 4 + 3, 2) = 2 * sin(N_delta[i]) * dt / wheelbase;
+
+            df_du(i * 4 + 2, 0) = dt;
+            df_du(i * 4 + 3, 1) =
+                (N_velo[i] * dt / wheelbase) / (cos(N_delta[i]) * cos(N_delta[i]));
+        } else {
+            df_dx(i * 4, 2) = cos(N_beta[i] + N_yaw[i]) * dt;
+            df_dx(i * 4, 3) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt;
+            df_dx(i * 4 + 1, 2) = sin(N_beta[i] + N_yaw[i]) * dt;
+            df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt;
+            df_dx(i * 4 + 3, 2) = 2 * sin(N_beta[i]) * dt / wheelbase;
+
+            df_du(i * 4, 1) = N_velo[i] * (-sin(N_beta[i] + N_yaw[i])) * dt * N_beta_over_stl[i];
+            df_du(i * 4 + 1, 1) = N_velo[i] * cos(N_beta[i] + N_yaw[i]) * dt * N_beta_over_stl[i];
+            df_du(i * 4 + 2, 0) = dt;
+            df_du(i * 4 + 3, 1) =
+                (2 * N_velo[i] * dt / wheelbase) * cos(N_beta[i]) * N_beta_over_stl[i];
+        }
     }
 
     return std::make_tuple(df_dx, df_du);
 }
 
 std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
-    const Eigen::Vector4d& state, double wheelbase) {
+    const Eigen::Vector4d& state, double wheelbase,
+    ReferencePoint ref_point /* = ReferencePoint::GravityCenter */) {
     double yaw = state[3];
-    Eigen::Vector2d half_whba_vec = 0.5 * wheelbase * Eigen::Vector2d{cos(yaw), sin(yaw)};
-    Eigen::Vector2d front_pnt = state.head(2) + half_whba_vec;
-    Eigen::Vector2d rear_pnt = state.head(2) - half_whba_vec;
+    Eigen::Vector2d front_pnt;
+    Eigen::Vector2d rear_pnt;
+    Eigen::Vector2d whba_vec = wheelbase * Eigen::Vector2d{cos(yaw), sin(yaw)};
+
+    if (ref_point == ReferencePoint::RearCenter) {
+        front_pnt = state.head(2) + whba_vec;
+        rear_pnt = state.head(2);
+    } else {
+        front_pnt = state.head(2) + 0.5 * whba_vec;
+        rear_pnt = state.head(2) - 0.5 * whba_vec;
+    }
 
     return std::make_tuple(front_pnt, rear_pnt);
 }
 
 std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>>
-get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase) {
+get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase,
+                                              ReferencePoint ref_point) {
     double half_whba = 0.5 * wheelbase;
-
+    Eigen::Matrix<double, 4, 2> front_pnt_over_state;
+    Eigen::Matrix<double, 4, 2> rear_pnt_over_state;
     // front point over (center) state:
     //      [[x_fr -> x_c, x_fr -> y_c, x_fr -> v, x_fr -> yaw]
     //       [y_fr -> x_c, y_fr -> y_c, y_fr -> v, y_fr -> yaw]]
-    Eigen::Matrix<double, 4, 2> front_pnt_over_state;
-    front_pnt_over_state << 1, 0, 0, 1, 0, 0, half_whba * (-sin(yaw)), half_whba * cos(yaw);
-
     // rear point over (center) state:
     //      <similarly...>
-    Eigen::Matrix<double, 4, 2> rear_pnt_over_state;
+    front_pnt_over_state << 1, 0, 0, 1, 0, 0, half_whba * (-sin(yaw)), half_whba * cos(yaw);
     rear_pnt_over_state << 1, 0, 0, 1, 0, 0, -half_whba * (-sin(yaw)), -half_whba * cos(yaw);
+
+    if (ref_point == ReferencePoint::RearCenter) {
+        front_pnt_over_state(3, 0) = wheelbase * (-sin(yaw));
+        front_pnt_over_state(3, 1) = wheelbase * cos(yaw);
+        rear_pnt_over_state(3, 0) = 0;
+        rear_pnt_over_state(3, 1) = 0;
+    }
 
     return std::make_tuple(front_pnt_over_state, rear_pnt_over_state);
 }
@@ -355,16 +369,16 @@ Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
 Eigen::MatrixX4d get_boundary(const Eigen::MatrixX4d& refline, double width) {
     double half_width = width / 2;
     int n_points = refline.rows();
-    Eigen::MatrixX4d boundary = Eigen::MatrixX4d::Zero(n_points, 4);
+    Eigen::MatrixX4d boundary = Eigen::MatrixX4d::Zero(n_points - 1, 4);
 
-    for (int i = 0; i < n_points; ++i) {
+    for (int i = 1; i < n_points; ++i) {
         double cur_x = refline(i, 0);
         double cur_y = refline(i, 1);
         double cur_yaw = refline(i, 3);
-        boundary(i, 0) = cur_x - half_width * sin(cur_yaw);
-        boundary(i, 1) = cur_y + half_width * cos(cur_yaw);
-        boundary(i, 2) = cur_x + half_width * sin(cur_yaw);
-        boundary(i, 3) = cur_y - half_width * cos(cur_yaw);
+        boundary(i - 1, 0) = cur_x - half_width * sin(cur_yaw);
+        boundary(i - 1, 1) = cur_y + half_width * cos(cur_yaw);
+        boundary(i - 1, 2) = cur_x + half_width * sin(cur_yaw);
+        boundary(i - 1, 3) = cur_y - half_width * cos(cur_yaw);
     }
 
     return boundary;

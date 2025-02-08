@@ -121,6 +121,7 @@ class CILQRSolver {
     double acc_max;
     double acc_min;
     double stl_lim;
+    ReferencePoint reference_point;
 
     Eigen::Vector3d obs_attr;
     Eigen::MatrixX4d l_x;
