@@ -1,13 +1,14 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-10-30 00:05:14
- * @LastEditTime: 2024-12-14 20:08:53
+ * @LastEditTime: 2025-02-10 00:43:15
  * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
 
 #include "cilqr_solver.hpp"
 #include "cubic_spline.hpp"
+#include "global_config.hpp"
 #include "matplotlibcpp.h"
 
 #include <fmt/core.h>
@@ -63,54 +64,44 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    YAML::Node config;
     spdlog::set_level(spdlog::level::debug);
     SPDLOG_INFO("config path: {}", config_path);
-    try {
-        config = YAML::LoadFile(config_path);
-        SPDLOG_DEBUG("config parameters:\n{}", YAML::Dump(config));
-    } catch (const YAML::Exception& e) {
-        SPDLOG_ERROR("Error parsing YAML file: {}", e.what());
-        return 1;
-    }
+    GlobalConfig* config = GlobalConfig::get_instance(config_path);
 
-    double target_velocity = config["vehicle"]["target_velocity"].as<double>();
-    double max_simulation_time = config["max_simulation_time"].as<double>();
-    double delta_t = config["delta_t"].as<double>();
+    double delta_t = config->get_config<double>("delta_t");
+    double max_simulation_time = config->get_config<double>("max_simulation_time");
+    double target_velocity = config->get_config<double>("vehicle/target_velocity");
     std::vector<double> reference_x =
-        config["laneline"]["reference"]["x"].as<std::vector<double>>();
+        config->get_config<std::vector<double>>("laneline/reference/x");
     std::vector<double> reference_y =
-        config["laneline"]["reference"]["y"].as<std::vector<double>>();
-    std::vector<double> border_widths = config["laneline"]["border"].as<std::vector<double>>();
+        config->get_config<std::vector<double>>("laneline/reference/y");
+    std::vector<double> border_widths = config->get_config<std::vector<double>>("laneline/border");
     std::vector<double> center_line_widths =
-        config["laneline"]["center_line"].as<std::vector<double>>();
+        config->get_config<std::vector<double>>("laneline/center_line");
     std::vector<std::vector<double>> initial_conditions =
-        config["initial_condition"].as<std::vector<std::vector<double>>>();
-    double wheelbase = config["vehicle"]["wheelbase"].as<double>();
-    std::string reference_point_string =
-        config["vehicle"]["reference_point"].as<std::string>("gravity_center");
+        config->get_config<std::vector<std::vector<double>>>("initial_condition");
+    double wheelbase = config->get_config<double>("vehicle/wheelbase");
+    std::string reference_point_string = config->get_config<std::string>("vehicle/reference_point");
     ReferencePoint reference_point = ReferencePoint::GravityCenter;
     if (reference_point_string == "rear_center") {
         reference_point = ReferencePoint::RearCenter;
     }
-    double VEHICLE_WIDTH = config["vehicle"]["width"].as<double>();
-    double VEHICLE_HEIGHT = config["vehicle"]["length"].as<double>();
-    double ACC_MAX = config["vehicle"]["acc_max"].as<double>();
+    double VEHICLE_WIDTH = config->get_config<double>("vehicle/width");
+    double VEHICLE_HEIGHT = config->get_config<double>("vehicle/length");
+    double ACC_MAX = config->get_config<double>("vehicle/acc_max");
     Eigen::Vector2d vehicle_para = {VEHICLE_HEIGHT, VEHICLE_WIDTH};
     size_t vehicle_num = initial_conditions.size();
 
     bool show_reference_line = false;
     std::vector<double> visual_x_limit = {0, 0};
     std::vector<double> visual_y_limit = {0, 0};
-    if (config["visualization"]) {
-        if (config["visualization"]["x_lim"]) {
-            visual_x_limit = config["visualization"]["x_lim"].as<std::vector<double>>();
-        }
-        if (config["visualization"]["y_lim"]) {
-            visual_y_limit = config["visualization"]["y_lim"].as<std::vector<double>>();
-        }
-        show_reference_line = config["visualization"]["show_reference_line"].as<bool>(false);
+    if (config->has_key("visualization/x_lim")) {
+        visual_x_limit = config->get_config<std::vector<double>>("visualization/x_lim");
     }
+    if (config->has_key("visualization/y_lim")) {
+        visual_y_limit = config->get_config<std::vector<double>>("visualization/y_lim");
+    }
+    show_reference_line = config->get_config<bool>("visualization/show_reference_line");
 
     std::vector<ReferenceLine> borders;
     std::vector<ReferenceLine> center_lines;
@@ -286,6 +277,7 @@ int main(int argc, char** argv) {
         plt::pause(delta_t);
     }
 
+    config->destroy_instance();
     plt::show();
 
     return 0;

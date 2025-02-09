@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-02 23:26:51
- * @LastEditTime: 2024-11-08 00:16:46
+ * @LastEditTime: 2025-02-11 22:45:29
  * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -11,8 +11,7 @@
 #define __CILQR_SOLVER_HPP
 
 #include "utils.hpp"
-
-#include <yaml-cpp/yaml.h>
+#include "global_config.hpp"
 
 #include <Eigen/Core>
 #include <tuple>
@@ -24,7 +23,7 @@ enum class SolveType { BARRIER, ALM };
 class CILQRSolver {
   public:
     CILQRSolver() = delete;
-    CILQRSolver(const YAML::Node& cfg);
+    explicit CILQRSolver(const GlobalConfig* const config);
     ~CILQRSolver() {}
 
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> solve(const Eigen::Vector4d& x0,

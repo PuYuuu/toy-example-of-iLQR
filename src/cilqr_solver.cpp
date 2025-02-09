@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2024-11-10 21:42:41
+ * @LastEditTime: 2025-02-10 00:43:43
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -14,23 +14,23 @@
 #include <Eigen/Dense>
 #include <limits>
 
-CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
-    dt = cfg["delta_t"].as<double>();
+CILQRSolver::CILQRSolver(const GlobalConfig* const config) : is_first_solve(true) {
+    dt = config->get_config<double>("delta_t");
+    N = config->get_config<int>("lqr/N");
+    nx = config->get_config<int>("lqr/nx");
+    nu = config->get_config<int>("lqr/nu");
 
-    YAML::Node planner_params = cfg["lqr"];
-    N = planner_params["N"].as<uint32_t>();
-    nx = planner_params["nx"].as<uint32_t>();
-    nu = planner_params["nu"].as<uint32_t>();
     state_weight = Eigen::Matrix4d::Zero();
-    state_weight(0, 0) = planner_params["w_pos"].as<double>();
-    state_weight(1, 1) = planner_params["w_pos"].as<double>();
-    state_weight(2, 2) = planner_params["w_vel"].as<double>();
-    state_weight(3, 3) = planner_params["w_yaw"].as<double>();
+    state_weight(0, 0) = config->get_config<double>("lqr/w_pos");
+    state_weight(1, 1) = config->get_config<double>("lqr/w_pos");
+    state_weight(2, 2) = config->get_config<double>("lqr/w_vel");
+    state_weight(3, 3) = config->get_config<double>("lqr/w_yaw");
     ctrl_weight = Eigen::Matrix2d::Zero();
-    ctrl_weight(0, 0) = planner_params["w_acc"].as<double>();
-    ctrl_weight(1, 1) = planner_params["w_stl"].as<double>();
-    use_last_solution = planner_params["use_last_solution"].as<bool>(false);
-    std::string solve_type_str = planner_params["slove_type"].as<std::string>("");
+    ctrl_weight(0, 0) = config->get_config<double>("lqr/w_acc");
+    ctrl_weight(1, 1) = config->get_config<double>("lqr/w_stl");
+
+    use_last_solution = config->get_config<bool>("lqr/use_last_solution");
+    std::string solve_type_str = config->get_config<std::string>("lqr/slove_type");
     if (solve_type_str == "alm") {
         solve_type = SolveType::ALM;
     } else if (solve_type_str == "barrier") {
@@ -40,38 +40,35 @@ CILQRSolver::CILQRSolver(const YAML::Node& cfg) : is_first_solve(true) {
         solve_type = SolveType::BARRIER;
     }
     if (solve_type == SolveType::BARRIER) {
-        obstacle_exp_q1 = planner_params["obstacle_exp_q1"].as<double>();
-        obstacle_exp_q2 = planner_params["obstacle_exp_q2"].as<double>();
-        state_exp_q1 = planner_params["state_exp_q1"].as<double>();
-        state_exp_q2 = planner_params["state_exp_q2"].as<double>();
+        obstacle_exp_q1 = config->get_config<double>("lqr/obstacle_exp_q1");
+        obstacle_exp_q2 = config->get_config<double>("lqr/obstacle_exp_q2");
+        state_exp_q1 = config->get_config<double>("lqr/state_exp_q1");
+        state_exp_q2 = config->get_config<double>("lqr/state_exp_q2");
     } else if (solve_type == SolveType::ALM) {
-        alm_rho_init = planner_params["alm_rho_init"].as<double>(1.0);
-        alm_gamma = planner_params["alm_gamma"].as<double>(0.0);
-        max_rho = planner_params["max_rho"].as<double>(100.0);
-        max_mu = planner_params["max_mu"].as<double>(1000.0);
+        alm_rho_init = config->get_config<double>("lqr/alm_rho_init");
+        alm_gamma = config->get_config<double>("lqr/alm_gamma");
+        max_rho = config->get_config<double>("lqr/max_rho");
+        max_mu = config->get_config<double>("lqr/max_mu");
     }
 
-    YAML::Node iteration_params = cfg["iteration"];
-    max_iter = iteration_params["max_iter"].as<double>();
-    init_lamb = iteration_params["init_lamb"].as<double>();
-    lamb_decay = iteration_params["lamb_decay"].as<double>();
-    lamb_amplify = iteration_params["lamb_amplify"].as<double>();
-    max_lamb = iteration_params["max_lamb"].as<double>();
-    tol = iteration_params["tol"].as<double>();
+    max_iter = config->get_config<int>("iteration/max_iter");
+    init_lamb = config->get_config<double>("iteration/init_lamb");
+    lamb_decay = config->get_config<double>("iteration/lamb_decay");
+    lamb_amplify = config->get_config<double>("iteration/lamb_amplify");
+    max_lamb = config->get_config<double>("iteration/max_lamb");
+    tol = config->get_config<double>("iteration/tol");
 
-    YAML::Node ego_veh_params = cfg["vehicle"];
-    wheelbase = ego_veh_params["wheelbase"].as<double>();
-    width = ego_veh_params["width"].as<double>();
-    length = ego_veh_params["length"].as<double>();
-    velo_max = ego_veh_params["velo_max"].as<double>();
-    velo_min = ego_veh_params["velo_min"].as<double>();
-    yaw_lim = ego_veh_params["yaw_lim"].as<double>();
-    acc_max = ego_veh_params["acc_max"].as<double>();
-    acc_min = ego_veh_params["acc_min"].as<double>();
-    stl_lim = ego_veh_params["stl_lim"].as<double>();
-    double d_safe = ego_veh_params["d_safe"].as<double>();
-    std::string reference_point_string =
-        ego_veh_params["reference_point"].as<std::string>("gravity_center");
+    wheelbase = config->get_config<double>("vehicle/wheelbase");
+    width = config->get_config<double>("vehicle/width");
+    length = config->get_config<double>("vehicle/length");
+    velo_max = config->get_config<double>("vehicle/velo_max");
+    velo_min = config->get_config<double>("vehicle/velo_min");
+    yaw_lim = config->get_config<double>("vehicle/yaw_lim");
+    acc_max = config->get_config<double>("vehicle/acc_max");
+    acc_min = config->get_config<double>("vehicle/acc_min");
+    stl_lim = config->get_config<double>("vehicle/stl_lim");
+    double d_safe = config->get_config<double>("vehicle/d_safe");
+    std::string reference_point_string = config->get_config<std::string>("vehicle/gravity_center");
     reference_point = ReferencePoint::GravityCenter;
     if (reference_point_string == "rear_center") {
         reference_point = ReferencePoint::RearCenter;
