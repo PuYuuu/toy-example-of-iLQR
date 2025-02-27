@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-10-30 00:05:14
- * @LastEditTime: 2025-02-10 00:43:15
+ * @LastEditTime: 2025-03-06 22:07:49
  * @FilePath: /toy-example-of-iLQR/src/motion_planning.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
         utils::plot_vehicle(outlook_ego, ego_state, vehicle_para, reference_point, wheelbase);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
             utils::plot_vehicle(outlook_agent, routing_lines[idx][index], vehicle_para,
-                                reference_point, wheelbase);
+                                reference_point, 0);
         }
 
         if (show_obstacle_boundary) {

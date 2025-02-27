@@ -34,7 +34,7 @@ iteration:
 vehicle:
   reference_point: "gravity_center" # rear_center or gravity_center
   target_velocity: 8
-  wheelbase: 3.6
+  wheelbase: 2.8
   width: 2
   length: 4.5
   velo_max: 15.0
