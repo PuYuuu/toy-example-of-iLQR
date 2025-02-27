@@ -31,7 +31,7 @@ iteration:
 
 vehicle:
   target_velocity: 8
-  wheelbase: 3.6
+  wheelbase: 2.8
   width: 2
   length: 4.5
   velo_max: 10.0

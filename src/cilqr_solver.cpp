@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2025-02-10 00:43:43
+ * @LastEditTime: 2025-02-28 01:01:57
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -68,7 +68,7 @@ CILQRSolver::CILQRSolver(const GlobalConfig* const config) : is_first_solve(true
     acc_min = config->get_config<double>("vehicle/acc_min");
     stl_lim = config->get_config<double>("vehicle/stl_lim");
     double d_safe = config->get_config<double>("vehicle/d_safe");
-    std::string reference_point_string = config->get_config<std::string>("vehicle/gravity_center");
+    std::string reference_point_string = config->get_config<std::string>("vehicle/reference_point");
     reference_point = ReferencePoint::GravityCenter;
     if (reference_point_string == "rear_center") {
         reference_point = ReferencePoint::RearCenter;
