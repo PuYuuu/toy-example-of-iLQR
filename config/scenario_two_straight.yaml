@@ -42,7 +42,7 @@ vehicle:
   acc_max: 3.0
   acc_min: -3.0
   stl_lim: 0.12
-  d_safe: 1.8
+  d_safe: 1.0
 
 laneline:
   reference:
@@ -55,8 +55,9 @@ initial_condition:
   # [x, y, v, yaw]
   - [0, 0, 8.0, 0]  # ego
   - [30, 0, 3.0, 0]
-  - [30, 3.6, 5, 0]
-  - [15, 3.6, 3.0, 0]
+  - [35, 3.6, 5, 0]
+  - [15, 3.6, 2.5, 0]
 
 visualization:
   y_lim: [-5, 13]
+  show_obstacle_boundary: false

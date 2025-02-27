@@ -244,13 +244,20 @@ class TicToc {
   private:
     std::chrono::time_point<std::chrono::system_clock> start, end;
 };
-
+std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
+                                               int start_idx);
+Eigen::Matrix3Xd get_cur_obstacle_states(const std::vector<RoutingLine>& routing_lines,
+                                         int time_index);
 bool imread(std::string filename, Outlook& outlook);
 void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);
-void show_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
+void plot_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
                   ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
-void show_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
+void plot_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
                   ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
+void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
+                            const Eigen::Matrix3Xd& obstacles_info,
+                            const Eigen::Vector3d& obstacle_attribute, double wheelbase,
+                            ReferencePoint reference_point = ReferencePoint::GravityCenter);
 
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase,
@@ -264,8 +271,8 @@ std::tuple<Eigen::Vector2d, Eigen::Vector2d> get_vehicle_front_and_rear_centers(
 std::tuple<Eigen::Matrix<double, 4, 2>, Eigen::Matrix<double, 4, 2>>
 get_vehicle_front_and_rear_center_derivatives(
     double yaw, double wheelbase, ReferencePoint ref_point = ReferencePoint::GravityCenter);
-Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
-                                              const Eigen::Vector3d& obs_attr);
+Eigen::Vector2d get_ellipsoid_obstacle_scales(const Eigen::Vector3d& obs_attr,
+                                              double ego_pnt_radius = 0);
 double ellipsoid_safety_margin(const Eigen::Vector2d& pnt, const Eigen::Vector3d& obs_state,
                                const Eigen::Vector2d& ellipse_ab);
 Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,

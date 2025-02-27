@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:39
- * @LastEditTime: 2025-02-08 23:27:45
+ * @LastEditTime: 2025-02-28 00:24:55
  * @FilePath: /toy-example-of-iLQR/src/utils.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -85,6 +85,35 @@ double Random::normal(double _mean, double _std) {
 
 namespace utils {
 
+std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
+                                               int start_idx) {
+    size_t lines_num = routing_lines.size();
+    std::vector<RoutingLine> sub_routing_lines(lines_num);
+
+    for (size_t i = 0; i < lines_num; ++i) {
+        std::copy(routing_lines[i].x.begin() + start_idx, routing_lines[i].x.end(),
+                  std::back_inserter(sub_routing_lines[i].x));
+        std::copy(routing_lines[i].y.begin() + start_idx, routing_lines[i].y.end(),
+                  std::back_inserter(sub_routing_lines[i].y));
+        std::copy(routing_lines[i].yaw.begin() + start_idx, routing_lines[i].yaw.end(),
+                  std::back_inserter(sub_routing_lines[i].yaw));
+    }
+
+    return sub_routing_lines;
+}
+
+Eigen::Matrix3Xd get_cur_obstacle_states(const std::vector<RoutingLine>& routing_lines,
+                                         int time_index) {
+    int obstalce_num = routing_lines.size() - 1;
+    Eigen::Matrix3Xd cur_obstacle_states = Eigen::Matrix3Xd::Zero(3, obstalce_num);
+
+    for (int idx = 1; idx < routing_lines.size(); ++idx) {
+        cur_obstacle_states.col(idx - 1) = routing_lines[idx][time_index];
+    }
+
+    return cur_obstacle_states;
+}
+
 bool imread(std::string filename, Outlook& outlook) {
     std::ifstream file(filename);
 
@@ -116,17 +145,17 @@ bool imread(std::string filename, Outlook& outlook) {
 }
 
 // state: [x y v yaw]
-void show_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
+void plot_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
                   ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
                   double ws /* = 0.*/) {
     Eigen::Vector3d state_convert;
     state_convert << state[0], state[1], state[3];
 
-    show_vehicle(out, state_convert, para, ref_point, ws);
+    plot_vehicle(out, state_convert, para, ref_point, ws);
 }
 
 // state: [x y yaw]
-void show_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
+void plot_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
                   ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
                   double ws /* = 0.*/) {
     std::vector<double> state_vector = {state[0], state[1], state[2]};
@@ -138,6 +167,49 @@ void show_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen:
     }
 
     imshow(out, state_vector, para_vector);
+}
+
+void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
+                            const Eigen::Matrix3Xd& obstacles_info,
+                            const Eigen::Vector3d& obstacle_attribute, double wheelbase,
+                            ReferencePoint reference_point /* = ReferencePoint::GravityCenter */) {
+    auto [ego_front, ego_rear] =
+        get_vehicle_front_and_rear_centers(ego_state, wheelbase, reference_point);
+    double radius = obstacle_attribute[0] * 0.5;
+    Eigen::ArrayXd t = Eigen::ArrayXd::LinSpaced(300, 0, 2 * M_PI);
+    Eigen::VectorXd sample_x = radius * t.cos();
+    Eigen::VectorXd sample_y = radius * t.sin();
+    Eigen::VectorXd front_circle_x =
+        sample_x.unaryExpr([ego_front](double x) { return x + ego_front[0]; });
+    Eigen::VectorXd front_circle_y =
+        sample_y.unaryExpr([ego_front](double x) { return x + ego_front[1]; });
+    Eigen::VectorXd rear_circle_x =
+        sample_x.unaryExpr([ego_rear](double x) { return x + ego_rear[0]; });
+    Eigen::VectorXd rear_circle_y =
+        sample_y.unaryExpr([ego_rear](double x) { return x + ego_rear[1]; });
+    plt::plot(front_circle_x, front_circle_y, {{"color", "red"}, {"zorder", "12"}});
+    plt::plot(rear_circle_x, rear_circle_y, {{"color", "red"}, {"zorder", "12"}});
+
+    int obstacle_num = obstacles_info.cols();
+    for (size_t idx = 0; idx < obstacle_num; ++idx) {
+        Eigen::Vector3d cur_state = obstacles_info.col(idx);
+        Eigen::Vector2d ellipse_ab = get_ellipsoid_obstacle_scales(obstacle_attribute);
+        Eigen::ArrayXd t = Eigen::ArrayXd::LinSpaced(300, 0, 2 * M_PI);
+        Eigen::VectorXd sample_x = ellipse_ab[0] * t.cos();
+        Eigen::VectorXd sample_y = ellipse_ab[1] * t.sin();
+        Eigen::Matrix2Xd points(2, sample_x.size());
+        points.row(0) = sample_x.transpose();
+        points.row(1) = sample_y.transpose();
+        Eigen::Matrix2d rotation_matrix;
+        rotation_matrix << cos(cur_state[2]), -sin(cur_state[2]), sin(cur_state[2]),
+            cos(cur_state[2]);
+        Eigen::Matrix2Xd rotated_points = rotation_matrix * points;
+        Eigen::VectorXd points_x =
+            rotated_points.row(0).unaryExpr([cur_state](double x) { return x + cur_state[0]; });
+        Eigen::VectorXd points_y =
+            rotated_points.row(1).unaryExpr([cur_state](double x) { return x + cur_state[1]; });
+        plt::plot(points_x, points_y, "-r");
+    }
 }
 
 void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para) {
@@ -312,10 +384,10 @@ get_vehicle_front_and_rear_center_derivatives(double yaw, double wheelbase,
     return std::make_tuple(front_pnt_over_state, rear_pnt_over_state);
 }
 
-Eigen::Vector2d get_ellipsoid_obstacle_scales(double ego_pnt_radius,
-                                              const Eigen::Vector3d& obs_attr) {
-    double a = 0.5 * obs_attr[1] + obs_attr[2] + ego_pnt_radius;
-    double b = 0.5 * obs_attr[0] + obs_attr[2] * 0.5 + ego_pnt_radius;
+Eigen::Vector2d get_ellipsoid_obstacle_scales(const Eigen::Vector3d& obs_attr,
+                                              double ego_pnt_radius /* = 0*/) {
+    double a = 0.5 * obs_attr[1] + obs_attr[2] * 6 + ego_pnt_radius;
+    double b = 0.5 * obs_attr[0] + obs_attr[2] + ego_pnt_radius;
 
     return Eigen::Vector2d{a, b};
 }

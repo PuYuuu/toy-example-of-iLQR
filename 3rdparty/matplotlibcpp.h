@@ -2905,6 +2905,39 @@ inline bool plot(const std::vector<double>& x, const std::vector<double>& y, con
     return plot<double>(x,y,keywords);
 }
 
+inline bool plot(const Eigen::VectorXd& x, const Eigen::VectorXd& y,
+                 const std::map<std::string, std::string>& keywords) {
+    assert(x.rows() == y.rows());
+
+    detail::_interpreter::get();
+    PyObject* xarray = detail::get_array(x);
+    PyObject* yarray = detail::get_array(y);
+
+    // construct positional args
+    PyObject* args = PyTuple_New(2);
+    PyTuple_SetItem(args, 0, xarray);
+    PyTuple_SetItem(args, 1, yarray);
+    // construct keyword args
+    PyObject* kwargs = PyDict_New();
+    for (std::map<std::string, std::string>::const_iterator it = keywords.begin();
+         it != keywords.end(); ++it) {
+        if (it->first == "linewidth" || it->first == "alpha" || it->first == "zorder") {
+            PyDict_SetItemString(kwargs, it->first.c_str(), PyInt_FromLong(std::stol(it->second)));
+        } else {
+            PyDict_SetItemString(kwargs, it->first.c_str(),
+                                 PyString_FromString(it->second.c_str()));
+        }
+    }
+
+    PyObject* res = PyObject_Call(detail::_interpreter::get().s_python_function_plot, args, kwargs);
+
+    Py_DECREF(args);
+    Py_DECREF(kwargs);
+    if (res) Py_DECREF(res);
+
+    return res;
+}
+
 inline bool plot(const Eigen::VectorXd& x, const Eigen::VectorXd& y, const std::string& format = "") {
     assert(x.rows() == y.rows());
 

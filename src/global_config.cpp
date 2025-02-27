@@ -75,6 +75,8 @@ void GlobalConfig::load_file(const std::string& filePath) {
 
         config_map["visualization/show_reference_line"] =
             config["visualization"]["show_reference_line"].as<bool>(false);
+        config_map["visualization/show_obstacle_boundary"] =
+            config["visualization"]["show_obstacle_boundary"].as<bool>(false);
         if (config["visualization"]) {
             if (config["visualization"]["x_lim"]) {
                 config_map["visualization/x_lim"] =

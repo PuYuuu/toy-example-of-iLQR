@@ -322,7 +322,7 @@ Eigen::Vector2d CILQRSolver::get_obstacle_avoidance_constr(const Eigen::Vector4d
                                                            const Eigen::Vector3d& obs_state) {
     auto [ego_front, ego_rear] =
         utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase, reference_point);
-    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
+    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(obs_attr, 0.5 * width);
     double front_safety_margin = utils::ellipsoid_safety_margin(ego_front, obs_state, ellipse_ab);
     double rear_safety_margin = utils::ellipsoid_safety_margin(ego_rear, obs_state, ellipse_ab);
 
@@ -695,7 +695,7 @@ std::tuple<Eigen::Vector4d, Eigen::Vector4d> CILQRSolver::get_obstacle_avoidance
     const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state) {
     auto [ego_front, ego_rear] =
         utils::get_vehicle_front_and_rear_centers(ego_state, wheelbase, reference_point);
-    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(0.5 * width, obs_attr);
+    Eigen::Vector2d ellipse_ab = utils::get_ellipsoid_obstacle_scales(obs_attr, 0.5 * width);
 
     // safety margin over ego front and rear points
     Eigen::Vector2d front_safety_margin_over_ego_front =

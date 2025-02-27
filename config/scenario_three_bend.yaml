@@ -40,7 +40,7 @@ vehicle:
   acc_max: 3.0
   acc_min: -3.0
   stl_lim: 0.2
-  d_safe: 1.5
+  d_safe: 0.8
 
 laneline:
   reference:
@@ -59,3 +59,4 @@ initial_condition:
 visualization:
   y_lim: [-3, 23]
   show_reference_line: false
+  show_obstacle_boundary: false

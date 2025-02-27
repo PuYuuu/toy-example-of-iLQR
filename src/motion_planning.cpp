@@ -26,23 +26,6 @@
 
 namespace plt = matplotlibcpp;
 
-std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
-                                               int start_idx) {
-    size_t lines_num = routing_lines.size();
-    std::vector<RoutingLine> sub_routing_lines(lines_num);
-
-    for (size_t i = 0; i < lines_num; ++i) {
-        std::copy(routing_lines[i].x.begin() + start_idx, routing_lines[i].x.end(),
-                  std::back_inserter(sub_routing_lines[i].x));
-        std::copy(routing_lines[i].y.begin() + start_idx, routing_lines[i].y.end(),
-                  std::back_inserter(sub_routing_lines[i].y));
-        std::copy(routing_lines[i].yaw.begin() + start_idx, routing_lines[i].yaw.end(),
-                  std::back_inserter(sub_routing_lines[i].yaw));
-    }
-
-    return sub_routing_lines;
-}
-
 int main(int argc, char** argv) {
     int opt;
     const char* optstring = "c:";
@@ -89,10 +72,13 @@ int main(int argc, char** argv) {
     double VEHICLE_WIDTH = config->get_config<double>("vehicle/width");
     double VEHICLE_HEIGHT = config->get_config<double>("vehicle/length");
     double ACC_MAX = config->get_config<double>("vehicle/acc_max");
+    double d_safe = config->get_config<double>("vehicle/d_safe");
+    Eigen::Vector3d obs_attr = {VEHICLE_WIDTH, VEHICLE_HEIGHT, d_safe};
     Eigen::Vector2d vehicle_para = {VEHICLE_HEIGHT, VEHICLE_WIDTH};
     size_t vehicle_num = initial_conditions.size();
 
-    bool show_reference_line = false;
+    bool show_reference_line = config->get_config<bool>("visualization/show_reference_line");
+    bool show_obstacle_boundary = config->get_config<bool>("visualization/show_obstacle_boundary");
     std::vector<double> visual_x_limit = {0, 0};
     std::vector<double> visual_y_limit = {0, 0};
     if (config->has_key("visualization/x_lim")) {
@@ -101,7 +87,6 @@ int main(int argc, char** argv) {
     if (config->has_key("visualization/y_lim")) {
         visual_y_limit = config->get_config<std::vector<double>>("visualization/y_lim");
     }
-    show_reference_line = config->get_config<bool>("visualization/show_reference_line");
 
     std::vector<ReferenceLine> borders;
     std::vector<ReferenceLine> center_lines;
@@ -208,17 +193,24 @@ int main(int argc, char** argv) {
 
         auto [new_u, new_x] =
             ilqr_solver.solve(ego_state, center_lines[0], target_velocity,
-                              get_sub_routing_lines(obs_prediction, index), road_borders);
+                              utils::get_sub_routing_lines(obs_prediction, index), road_borders);
         ego_state = new_x.row(1).transpose();
 
         Eigen::MatrixX4d boarder = utils::get_boundary(new_x, VEHICLE_WIDTH * 0.7);
         std::vector<std::vector<double>> closed_curve = utils::get_closed_curve(boarder);
         plt::fill(closed_curve[0], closed_curve[1], {{"color", "cyan"}, {"alpha", "0.7"}});
 
-        utils::show_vehicle(outlook_ego, ego_state, vehicle_para, reference_point, wheelbase);
+        utils::plot_vehicle(outlook_ego, ego_state, vehicle_para, reference_point, wheelbase);
         for (size_t idx = 1; idx < vehicle_num; ++idx) {
-            utils::show_vehicle(outlook_agent, routing_lines[idx][index], vehicle_para,
+            utils::plot_vehicle(outlook_agent, routing_lines[idx][index], vehicle_para,
                                 reference_point, wheelbase);
+        }
+
+        if (show_obstacle_boundary) {
+            Eigen::Matrix3Xd cur_obstacle_states =
+                utils::get_cur_obstacle_states(routing_lines, index);
+            utils::plot_obstacle_boundary(ego_state, cur_obstacle_states, obs_attr, wheelbase,
+                                          reference_point);
         }
 
         if (show_reference_line) {
