@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2025-02-28 01:01:57
+ * @LastEditTime: 2025-03-16 21:50:10
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -56,7 +56,8 @@ CILQRSolver::CILQRSolver(const GlobalConfig* const config) : is_first_solve(true
     lamb_decay = config->get_config<double>("iteration/lamb_decay");
     lamb_amplify = config->get_config<double>("iteration/lamb_amplify");
     max_lamb = config->get_config<double>("iteration/max_lamb");
-    tol = config->get_config<double>("iteration/tol");
+    convergence_threshold = config->get_config<double>("iteration/convergence_threshold");
+    accept_step_threshold = config->get_config<double>("iteration/accept_step_threshold");
 
     wheelbase = config->get_config<double>("vehicle/wheelbase");
     width = config->get_config<double>("vehicle/width");
@@ -90,7 +91,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
         alm_mu = Eigen::MatrixXd::Zero(N, 8 + 2 * obs_preds.size());
         alm_mu_next = Eigen::MatrixXd::Zero(N, 8 + 2 * obs_preds.size());
     }
-
+    current_solve_status = LQRSolveStatus::RUNNING;
     Eigen::MatrixX2d u;
     Eigen::MatrixX4d x;
     if (!is_first_solve && use_last_solution) {
@@ -102,6 +103,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
 
     double J = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
     double lamb = init_lamb;
+    double delta = 0.;
     TicToc solve_time;
     bool is_exceed_max_itr = true;
     bool iter_effective_flag = false;
@@ -111,28 +113,31 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
         if (iter_effective_flag) {
             x = new_x;
             u = new_u;
-            if (abs(new_J - J) / J < tol || abs(new_J - J) < tol) {
-                SPDLOG_INFO(
-                    "Tolerance condition satisfied. itr: {}, final cost: {:.3f}, solve cost time "
-                    "{:.2f} ms",
-                    itr, J, solve_time.toc() * 1000);
-                is_exceed_max_itr = false;
-                break;
-            }
+        }
 
-            J = new_J;
+        if (current_solve_status == LQRSolveStatus::BACKWARD_PASS_FAIL ||
+            current_solve_status == LQRSolveStatus::FORWARD_PASS_FAIL) {
+            lamb = std::max(lamb_amplify, lamb * lamb_amplify);
+            // SPDLOG_DEBUG("iter {}, increase mu to {}", itr, lamb);
+        } else if (current_solve_status == LQRSolveStatus::RUNNING) {
             lamb *= lamb_decay;
-        } else {
-            lamb *= lamb_amplify;
+            // SPDLOG_DEBUG("iter {}, decrease mu to {}", itr, lamb);
+        }
 
-            if (lamb > max_lamb) {
-                SPDLOG_WARN(
-                    "Regularization parameter reached the maximum. itr: {}, final cost: {:.3f}, "
-                    "solve cost time {:.2f} ms",
-                    itr, J, solve_time.toc() * 1000);
-                is_exceed_max_itr = false;
-                break;
-            }
+        if (lamb > max_lamb) {
+            SPDLOG_WARN(
+                "Regularization reached the maximum. itr: {}, final cost: {:.3f}, "
+                "cost time {:.2f} ms",
+                itr, J, solve_time.toc() * 1000);
+            is_exceed_max_itr = false;
+            break;
+        } else if (current_solve_status == LQRSolveStatus::CONVERGED) {
+            SPDLOG_INFO(
+                "Optimization has converged. itr: {}, final cost: {:.3f}, cost time "
+                "{:.2f} ms",
+                itr, J, solve_time.toc() * 1000);
+            is_exceed_max_itr = false;
+            break;
         }
     }
 
@@ -333,27 +338,36 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
     const Eigen::MatrixX2d& u, const Eigen::MatrixX4d& x, double lamb,
     const ReferenceLine& ref_waypoints, double ref_velo, const std::vector<RoutingLine>& obs_preds,
     const Eigen::Vector2d& road_boaders, bool& effective_flag) {
+    
+    double ori_cost = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
     auto [d, K, delta_item] =
         backward_pass(u, x, lamb, ref_waypoints, ref_velo, obs_preds, road_boaders);
+    if (current_solve_status == LQRSolveStatus::BACKWARD_PASS_FAIL) {
+        return std::make_tuple(u, x, ori_cost);
+    }
 
+    double new_J = std::numeric_limits<double>::max();
     Eigen::MatrixX2d new_u = Eigen::MatrixX2d::Zero(N, nu);
     Eigen::MatrixX4d new_x = Eigen::MatrixX4d::Zero(N + 1, nx);
-    double new_J = std::numeric_limits<double>::max();
     effective_flag = false;
-    double ori_cost = get_total_cost(u, x, ref_waypoints, ref_velo, obs_preds, road_boaders);
 
     for (double alpha = 1.0; alpha > 1e-6; alpha *= 0.5) {
         std::tie(new_u, new_x) = forward_pass(u, x, d, K, alpha);
         new_J = get_total_cost(new_u, new_x, ref_waypoints, ref_velo, obs_preds, road_boaders);
-        double except_reduce = alpha * alpha * delta_item[0] + alpha * delta_item[1];
-        double tmp = (new_J - ori_cost) / (except_reduce - 1e-5);
-        // if (tmp < 50 && tmp > 0.0001) {
-        //     search_flag = true;
-        //     break;
-        // }
-        if (new_J < ori_cost) {
+        const double actual_cost_decay = ori_cost - new_J;
+        if (std::fabs(alpha - 1.0) < EPS && std::fabs(actual_cost_decay) < convergence_threshold) {
+            current_solve_status = LQRSolveStatus::CONVERGED;
+            return std::make_tuple(new_u, new_x, new_J);
+        }
+        double approx_cost_decay = -(alpha * alpha * delta_item[0] + alpha * delta_item[1]);
+        if (actual_cost_decay > 0.0 &&
+            (approx_cost_decay < 0.0 ||
+             actual_cost_decay / approx_cost_decay > accept_step_threshold)) {
+            if (std::fabs(alpha - 1.0) > EPS) {
+                current_solve_status = LQRSolveStatus::FORWARD_PASS_SMALL_STEP;
+            }
             effective_flag = true;
-            break;
+            return std::make_tuple(new_u, new_x, new_J);
         }
     }
     if (!effective_flag) {
@@ -362,7 +376,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, double> CILQRSolver::iter_step(
 
     alm_mu = alm_mu_next;
     alm_rho = std::min((1 + alm_gamma) * alm_rho, max_rho);
-
+    current_solve_status = LQRSolveStatus::FORWARD_PASS_FAIL;
     return std::make_tuple(new_u, new_x, new_J);
 }
 
@@ -381,8 +395,6 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> CILQRSolver::bac
     Eigen::Vector4d V_x = l_x.bottomRows(1).transpose();
     Eigen::Matrix4d V_xx = l_xx.bottomRows(4);
 
-    Eigen::Matrix4d regu_I = lamb * Eigen::Matrix4d::Identity();
-
     for (int i = N - 1; i >= 0; --i) {
         // Q_terms
         Eigen::Vector4d Q_x =
@@ -394,20 +406,22 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> CILQRSolver::bac
             df_dx.block(nx * i, 0, nx, nx).transpose() * V_xx * df_dx.block(nx * i, 0, nx, nx);
         Eigen::Matrix2d Q_uu =
             l_uu.block(nu * i, 0, nu, nu) +
-            df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_du.block(nx * i, 0, nx, nu);
+            df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_du.block(nx * i, 0, nx, nu) +
+            lamb * Eigen::Matrix4d::Identity();
         Eigen::Matrix<double, 2, 4> Q_ux =
             l_ux.block(nu * i, 0, nu, nx) +
             df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_dx.block(nx * i, 0, nx, nx);
 
-        // gains
-        Eigen::Matrix<double, 2, 4> df_du_regu =
-            df_du.block(nx * i, 0, nx, nu).transpose() * regu_I;
-        Eigen::Matrix<double, 2, 4> Q_ux_regu = Q_ux + df_du_regu * df_dx.block(nx * i, 0, nx, nx);
-        Eigen::Matrix2d Q_uu_regu = Q_uu + df_du_regu * df_du.block(nx * i, 0, nx, nu);
-        Eigen::Matrix2d Q_uu_inv = Q_uu_regu.inverse();
+        Eigen::LLT<Eigen::MatrixXd> llt_quu(Q_uu);
+        if (llt_quu.info() == Eigen::NumericalIssue) {
+            SPDLOG_ERROR("[Backward pass] Non-PD Quu cur lamb: {}", lamb);
+            current_solve_status = LQRSolveStatus::BACKWARD_PASS_FAIL;
+            return std::tuple(d, K, delta_V);
+        }
+        Eigen::Matrix2d Q_uu_inv = Q_uu.inverse();
 
         d.row(i) = -Q_uu_inv * Q_u;
-        K.block(nu * i, 0, nu, nx) = -Q_uu_inv * Q_ux_regu;
+        K.block(nu * i, 0, nu, nx) = -Q_uu_inv * Q_ux;
 
         // Update value function for next time step
         V_x = Q_x + K.block(nu * i, 0, nu, nx).transpose() * Q_uu * d.row(i).transpose() +
@@ -452,6 +466,13 @@ void CILQRSolver::get_total_cost_derivatives_and_Hessians(const Eigen::MatrixX2d
                                                           double ref_velo,
                                                           const std::vector<RoutingLine>& obs_preds,
                                                           const Eigen::Vector2d& road_boaders) {
+    if (solve_type == SolveType::BARRIER &&
+        current_solve_status != LQRSolveStatus::RUNNING &&
+        current_solve_status != LQRSolveStatus::FORWARD_PASS_SMALL_STEP) {
+        current_solve_status = LQRSolveStatus::RUNNING;
+        return;
+    }
+    current_solve_status = LQRSolveStatus::RUNNING;
     l_x.setZero(N, nx);
     l_u.setZero(N, nu);
     l_xx.setZero(N * nx, nx);

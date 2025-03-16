@@ -11,7 +11,7 @@ lqr:
   w_acc: 0.5
   w_stl: 20.0
   # Solving CILQR using the augmented lagrangian method or the barrier function
-  slove_type: "alm" # or "barrier"
+  slove_type: "barrier" # or "alm"
   alm_rho_init: 20
   alm_gamma: 0
   max_rho: 20
@@ -21,15 +21,16 @@ lqr:
   obstacle_exp_q2: 5.75
   state_exp_q1: 3.0
   state_exp_q2: 3.5
-  use_last_solution: true
+  use_last_solution: false
 
 iteration:
   max_iter: 100
-  init_lamb: 20
-  lamb_decay: 0.7
+  init_lamb: 0
+  lamb_decay: 0.5
   lamb_amplify: 2.0
-  max_lamb: 100000.0
-  tol: 0.00001
+  max_lamb: 1000.0
+  convergence_threshold: 0.01
+  accept_step_threshold: 0.5
 
 vehicle:
   reference_point: "rear_center"
@@ -61,4 +62,4 @@ initial_condition:
 
 visualization:
   y_lim: [-5, 13]
-  show_obstacle_boundary: false
+  show_obstacle_boundary: true

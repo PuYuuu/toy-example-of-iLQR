@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+constexpr double EPS = 1e-5;
+
 enum class ReferencePoint { RearCenter, GravityCenter };
 
 class ReferenceLine {

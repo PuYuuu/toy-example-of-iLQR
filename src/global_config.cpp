@@ -46,7 +46,10 @@ void GlobalConfig::load_file(const std::string& filePath) {
         config_map["iteration/lamb_decay"] = config["iteration"]["lamb_decay"].as<double>();
         config_map["iteration/lamb_amplify"] = config["iteration"]["lamb_amplify"].as<double>();
         config_map["iteration/max_lamb"] = config["iteration"]["max_lamb"].as<double>();
-        config_map["iteration/tol"] = config["iteration"]["tol"].as<double>();
+        config_map["iteration/convergence_threshold"] =
+            config["iteration"]["convergence_threshold"].as<double>();
+        config_map["iteration/accept_step_threshold"] =
+            config["iteration"]["accept_step_threshold"].as<double>();
 
         config_map["vehicle/reference_point"] =
             config["vehicle"]["reference_point"].as<std::string>("gravity_center");

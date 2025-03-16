@@ -20,6 +20,14 @@
 enum class BoundType { UPPER, LOWER };
 enum class SolveType { BARRIER, ALM };
 
+enum class LQRSolveStatus {
+    RUNNING,
+    CONVERGED,
+    BACKWARD_PASS_FAIL,
+    FORWARD_PASS_FAIL,
+    FORWARD_PASS_SMALL_STEP,
+};
+
 class CILQRSolver {
   public:
     CILQRSolver() = delete;
@@ -108,7 +116,8 @@ class CILQRSolver {
     double lamb_decay;
     double lamb_amplify;
     double max_lamb;
-    double tol;
+    double convergence_threshold;
+    double accept_step_threshold;
 
     // ego vehicle-related settings
     double wheelbase;
@@ -134,6 +143,7 @@ class CILQRSolver {
     Eigen::MatrixX2d last_solve_u;
     Eigen::MatrixX4d last_solve_x;
     double last_solve_J;
+    LQRSolveStatus current_solve_status = LQRSolveStatus::RUNNING;
 };
 
 #endif

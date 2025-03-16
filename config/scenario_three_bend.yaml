@@ -23,11 +23,12 @@ lqr:
 
 iteration:
   max_iter: 100
-  init_lamb: 20
-  lamb_decay: 0.7
+  init_lamb: 0
+  lamb_decay: 0.5
   lamb_amplify: 2.0
-  max_lamb: 100000.0
-  tol: 0.00001
+  max_lamb: 1000.0
+  convergence_threshold: 0.01
+  accept_step_threshold: 0.5
 
 vehicle:
   target_velocity: 8
