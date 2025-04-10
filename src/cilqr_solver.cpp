@@ -1,7 +1,7 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2025-03-16 21:50:10
+ * @LastEditTime: 2025-04-10 22:57:53
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
@@ -208,8 +208,8 @@ double CILQRSolver::get_total_cost(const Eigen::MatrixX2d& u, const Eigen::Matri
     ref_states << ref_exact_points.block(0, 0, ref_exact_points.rows(), 2), ref_velocitys,
         ref_exact_points.col(2);
 
-    double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).sum();
-    double ctrl_energy = (u * ctrl_weight * u.transpose()).sum();
+    double states_devt = ((x - ref_states) * state_weight * (x - ref_states).transpose()).trace();
+    double ctrl_energy = (u * ctrl_weight * u.transpose()).trace();
     double J_prime = states_devt + ctrl_energy;
 
     // part 2: costs of the barrier function terms
