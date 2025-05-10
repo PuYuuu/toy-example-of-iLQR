@@ -407,7 +407,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d, Eigen::Vector2d> CILQRSolver::bac
         Eigen::Matrix2d Q_uu =
             l_uu.block(nu * i, 0, nu, nu) +
             df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_du.block(nx * i, 0, nx, nu) +
-            lamb * Eigen::Matrix4d::Identity();
+            lamb * Eigen::Matrix2d::Identity();
         Eigen::Matrix<double, 2, 4> Q_ux =
             l_ux.block(nu * i, 0, nu, nx) +
             df_du.block(nx * i, 0, nx, nu).transpose() * V_xx * df_dx.block(nx * i, 0, nx, nx);

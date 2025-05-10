@@ -39,6 +39,7 @@ class CILQRSolver {
                                                          double ref_velo,
                                                          const std::vector<RoutingLine>& obs_preds,
                                                          const Eigen::Vector2d& road_boaders);
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   private:
     std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> get_init_traj(const Eigen::Vector4d& x0);
