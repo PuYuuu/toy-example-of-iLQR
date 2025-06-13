@@ -262,7 +262,7 @@ void imshow(const Outlook& out, const std::vector<double>& state, const std::vec
 Eigen::Vector4d kinematic_propagate(
     const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u, double dt, double wheelbase,
     ReferencePoint ref_point /* = ReferencePoint::GravityCenter */) {
-    double beta = atan(tan(cur_u[1] / 2));
+    double beta = atan(tan(cur_u[1]) / 2);
     Eigen::Vector4d next_x;
 
     // clang-format off
