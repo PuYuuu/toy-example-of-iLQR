@@ -318,7 +318,7 @@ std::tuple<Eigen::MatrixX4d, Eigen::MatrixX2d> get_kinematic_model_derivatives(
             df_dx(i * 4, 3) = N_velo[i] * (-sin(N_yaw[i])) * dt;
             df_dx(i * 4 + 1, 2) = sin(N_yaw[i]) * dt;
             df_dx(i * 4 + 1, 3) = N_velo[i] * cos(N_yaw[i]) * dt;
-            df_dx(i * 4 + 3, 2) = 2 * sin(N_delta[i]) * dt / wheelbase;
+            df_dx(i * 4 + 3, 2) = tan(N_delta[i]) * dt / wheelbase;
 
             df_du(i * 4 + 2, 0) = dt;
             df_du(i * 4 + 3, 1) =
