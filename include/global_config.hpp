@@ -1,14 +1,12 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2025-02-09 00:04:13
- * @LastEditTime: 2025-02-11 22:36:34
+ * @LastEditTime: 2025-08-16 20:03:36
  * @FilePath: /toy-example-of-iLQR/include/global_config.hpp
  * Copyright 2025 puyu, All Rights Reserved.
  */
 
 #pragma once
-#ifndef __GLOBAL_CONFIG_HPP
-#define __GLOBAL_CONFIG_HPP
 
 #include <any>
 #include <vector>
@@ -35,6 +33,3 @@ public:
 
     static void destroy_instance();
 };
-
-
-#endif

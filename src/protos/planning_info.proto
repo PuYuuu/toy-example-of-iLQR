@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package planning;
+
+message State {
+    double x = 1;
+    double y = 2;
+    double v = 3;
+    double yaw = 4;
+}
+
+message Control {
+    double acc = 1;
+    double steer = 2;
+};
+
+message PlanningInfo {
+    uint32 iteration_count = 1;
+    double solve_time = 2;
+    double target_velocity = 3;
+    repeated State init_states = 4;
+    repeated Control init_controls = 5;
+    repeated State final_states = 6;
+    repeated Control final_controls = 7;
+}

@@ -1,14 +1,13 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 00:21:21
- * @LastEditTime: 2025-04-10 22:57:53
+ * @LastEditTime: 2025-08-16 23:16:32
  * @FilePath: /toy-example-of-iLQR/src/cilqr_solver.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
 
 #include "cilqr_solver.hpp"
 
-#include <fmt/core.h>
 #include <spdlog/spdlog.h>
 
 #include <Eigen/Dense>
@@ -130,6 +129,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
                 "cost time {:.2f} ms",
                 itr, J, solve_time.toc() * 1000);
             is_exceed_max_itr = false;
+            iteration_count_ = itr;
             break;
         } else if (current_solve_status == LQRSolveStatus::CONVERGED) {
             SPDLOG_INFO(
@@ -137,6 +137,7 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
                 "{:.2f} ms",
                 itr, J, solve_time.toc() * 1000);
             is_exceed_max_itr = false;
+            iteration_count_ = itr;
             break;
         }
     }
@@ -144,10 +145,11 @@ std::tuple<Eigen::MatrixX2d, Eigen::MatrixX4d> CILQRSolver::solve(
     last_solve_u = u;
 
     if (is_exceed_max_itr) {
+        iteration_count_ = max_iter;
         SPDLOG_WARN("Iteration reached the maximum {}. Final cost: {:.3f}", max_iter, J);
     }
-    double solve_cost_time = solve_time.toc() * 1000;
-    // SPDLOG_DEBUG("solve cost time {:.2f} ms", solve_cost_time);
+    solve_cost_time_ = solve_time.toc() * 1000;
+    // SPDLOG_DEBUG("solve cost time {:.2f} ms", solve_cost_time_);
 
     return std::make_tuple(u, x);
 }

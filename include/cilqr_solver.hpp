@@ -1,17 +1,15 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-02 23:26:51
- * @LastEditTime: 2025-02-11 22:45:29
+ * @LastEditTime: 2025-08-16 22:07:57
  * @FilePath: /toy-example-of-iLQR/include/cilqr_solver.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
 
 #pragma once
-#ifndef __CILQR_SOLVER_HPP
-#define __CILQR_SOLVER_HPP
 
-#include "utils.hpp"
 #include "global_config.hpp"
+#include "utils.hpp"
 
 #include <Eigen/Core>
 #include <tuple>
@@ -39,6 +37,9 @@ class CILQRSolver {
                                                          double ref_velo,
                                                          const std::vector<RoutingLine>& obs_preds,
                                                          const Eigen::Vector2d& road_boaders);
+    uint32_t iteration_count() const { return iteration_count_; }
+    double solve_cost_time() const { return solve_cost_time_; }
+
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   private:
@@ -87,6 +88,9 @@ class CILQRSolver {
         double c, Eigen::MatrixXd c_dot, double rho, double mu);
     std::tuple<Eigen::Vector4d, Eigen::Vector4d> get_obstacle_avoidance_constr_derivatives(
         const Eigen::Vector4d& ego_state, const Eigen::Vector3d& obs_state);
+
+    uint32_t iteration_count_{0};
+    double solve_cost_time_{0.0};
 
     // planning-related settings
     uint32_t N;  // horizon length
@@ -146,5 +150,3 @@ class CILQRSolver {
     double last_solve_J;
     LQRSolveStatus current_solve_status = LQRSolveStatus::RUNNING;
 };
-
-#endif

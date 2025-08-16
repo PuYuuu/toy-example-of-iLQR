@@ -1,4 +1,4 @@
-max_simulation_time: 15
+max_simulation_time: 25
 delta_t: 0.1
 
 lqr:
@@ -45,8 +45,8 @@ vehicle:
 
 laneline:
   reference:
-    x: [-20, -5, 10, 20, 35, 70, 100, 150]
-    y: [  1,  1,  1, 5, 6.5, 0, 0, 0]
+    x: [-20, -5, 10, 20, 35, 70, 100, 150, 250]
+    y: [  1,  1,  1, 5, 6.5, 0, 0, 0, 5]
   border: [-1.8, 1.8, 5.4, 9]
   center_line: [0, 3.6, 7.2]
 
@@ -56,8 +56,3 @@ initial_condition:
   - [10, 0, 4, 0.5236]
   - [25, 10, 4, 0.5236]
   - [-15, 9, 8, 0]
-
-visualization:
-  y_lim: [-3, 23]
-  show_reference_line: false
-  show_obstacle_boundary: false

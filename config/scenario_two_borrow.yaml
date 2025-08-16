@@ -60,7 +60,3 @@ initial_condition:
   - [30, 0, 6.5, 0]
   - [35, 3.6, 8.0, 3.1416]
   - [110, 3.6, 3.0, 3.1416]
-
-visualization:
-  y_lim: [-5, 13]
-  show_obstacle_boundary: true

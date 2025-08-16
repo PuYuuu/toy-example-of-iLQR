@@ -1,22 +1,19 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:39
- * @LastEditTime: 2025-02-28 00:24:55
+ * @LastEditTime: 2025-08-16 23:16:25
  * @FilePath: /toy-example-of-iLQR/src/utils.cpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
 
-#include "matplotlibcpp.h"
 #include "utils.hpp"
 
-#include <fmt/core.h>
 #include <spdlog/spdlog.h>
 
 #include <fstream>
 
 using std::string;
 using namespace Eigen;
-namespace plt = matplotlibcpp;
 
 ReferenceLine::ReferenceLine(std::vector<double> _x, std::vector<double> _y, double width /* = 0*/,
                              double accuracy /* = 0.1*/)
@@ -85,6 +82,23 @@ double Random::normal(double _mean, double _std) {
 
 namespace utils {
 
+std::string get_time_str(bool keep_ms /* = false */) {
+    using namespace std::chrono;
+
+    auto tp = system_clock::now();
+    auto t = system_clock::to_time_t(tp);
+
+    std::ostringstream oss;
+    oss << std::put_time(std::localtime(&t), "%Y-%m-%d-%H-%M-%S");
+
+    if (keep_ms) {
+        auto ms = duration_cast<milliseconds>(tp.time_since_epoch()) % 1000;
+        oss << '-' << std::setfill('0') << std::setw(3) << ms.count();
+    }
+
+    return oss.str();
+}
+
 std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
                                                int start_idx) {
     size_t lines_num = routing_lines.size();
@@ -114,61 +128,6 @@ Eigen::Matrix3Xd get_cur_obstacle_states(const std::vector<RoutingLine>& routing
     return cur_obstacle_states;
 }
 
-bool imread(std::string filename, Outlook& outlook) {
-    std::ifstream file(filename);
-
-    if (!file.is_open()) {
-        SPDLOG_ERROR("open {} failed !", filename);
-        return false;
-    }
-
-    std::string line;
-    getline(file, line);
-    if (line != "Convert from PNG") {
-        SPDLOG_ERROR("this format is not supported: {}", filename);
-        return false;
-    }
-    getline(file, line);
-    std::istringstream iss(line);
-    iss >> outlook.rows >> outlook.cols >> outlook.colors;
-    outlook.data.resize(outlook.rows * outlook.cols * outlook.colors);
-    int idx = 0;
-    while (getline(file, line)) {
-        std::istringstream iss(line);
-        for (int i = 0; i < outlook.colors; ++i) {
-            iss >> outlook.data[idx++];
-        }
-    }
-    file.close();
-
-    return true;
-}
-
-// state: [x y v yaw]
-void plot_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
-                  ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
-                  double ws /* = 0.*/) {
-    Eigen::Vector3d state_convert;
-    state_convert << state[0], state[1], state[3];
-
-    plot_vehicle(out, state_convert, para, ref_point, ws);
-}
-
-// state: [x y yaw]
-void plot_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
-                  ReferencePoint ref_point /* = ReferencePoint::GravityCenter */,
-                  double ws /* = 0.*/) {
-    std::vector<double> state_vector = {state[0], state[1], state[2]};
-    std::vector<double> para_vector = {para[0], para[1]};
-
-    if (ref_point == ReferencePoint::RearCenter) {
-        state_vector[0] += 0.5 * ws * cos(state[2]);
-        state_vector[1] += 0.5 * ws * sin(state[2]);
-    }
-
-    imshow(out, state_vector, para_vector);
-}
-
 void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
                             const Eigen::Matrix3Xd& obstacles_info,
                             const Eigen::Vector3d& obstacle_attribute, double wheelbase,
@@ -187,8 +146,6 @@ void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
         sample_x.unaryExpr([ego_rear](double x) { return x + ego_rear[0]; });
     Eigen::VectorXd rear_circle_y =
         sample_y.unaryExpr([ego_rear](double x) { return x + ego_rear[1]; });
-    plt::plot(front_circle_x, front_circle_y, {{"color", "red"}, {"zorder", "12"}});
-    plt::plot(rear_circle_x, rear_circle_y, {{"color", "red"}, {"zorder", "12"}});
 
     int obstacle_num = obstacles_info.cols();
     for (size_t idx = 0; idx < obstacle_num; ++idx) {
@@ -208,54 +165,6 @@ void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
             rotated_points.row(0).unaryExpr([cur_state](double x) { return x + cur_state[0]; });
         Eigen::VectorXd points_y =
             rotated_points.row(1).unaryExpr([cur_state](double x) { return x + cur_state[1]; });
-        plt::plot(points_x, points_y, "-r");
-    }
-}
-
-void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para) {
-    static PyObject* imshow_func = nullptr;
-    if (imshow_func == nullptr) {
-        Py_Initialize();
-        _import_array();
-
-        std::filesystem::path source_file_path(__FILE__);
-        std::filesystem::path project_path = source_file_path.parent_path().parent_path();
-        std::string script_path = project_path / "scripts" / "utils";
-        PyRun_SimpleString("import sys");
-        PyRun_SimpleString(fmt::format("sys.path.append('{}')", script_path).c_str());
-
-        PyObject* py_name = PyUnicode_DecodeFSDefault("imshow");
-        PyObject* py_module = PyImport_Import(py_name);
-        Py_DECREF(py_name);
-        if (py_module != nullptr) {
-            imshow_func = PyObject_GetAttrString(py_module, "imshow");
-        }
-        if (imshow_func == nullptr || !PyCallable_Check(imshow_func)) {
-            spdlog::error(
-                "py.imshow call failed and the vehicle drawing will only "
-                "support linestyle");
-            imshow_func = nullptr;
-        }
-    }
-
-    std::vector<double> state_list{0, 0, 0};
-
-    PyObject* vehicle_state = matplotlibcpp::detail::get_array(state);
-    PyObject* vehicle_para = matplotlibcpp::detail::get_array(para);
-    npy_intp dims[3] = {out.rows, out.cols, out.colors};
-
-    const float* imptr = &(out.data[0]);
-
-    PyObject* args = PyTuple_New(3);
-    PyTuple_SetItem(args, 0, PyArray_SimpleNewFromData(3, dims, NPY_FLOAT, (void*)imptr));
-    PyTuple_SetItem(args, 1, vehicle_state);
-    PyTuple_SetItem(args, 2, vehicle_para);
-
-    PyObject* ret = PyObject_CallObject(imshow_func, args);
-
-    Py_DECREF(args);
-    if (ret) {
-        Py_DECREF(ret);
     }
 }
 

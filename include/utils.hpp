@@ -1,14 +1,12 @@
 /*
  * @Author: puyu <yuu.pu@foxmail.com>
  * @Date: 2024-09-27 01:20:28
- * @LastEditTime: 2025-02-08 23:19:37
+ * @LastEditTime: 2025-08-16 23:10:18
  * @FilePath: /toy-example-of-iLQR/include/utils.hpp
  * Copyright 2024 puyu, All Rights Reserved.
  */
 
 #pragma once
-#ifndef __UTILS_HPP
-#define __UTILS_HPP
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 
@@ -24,6 +22,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <thread>
 
 constexpr double EPS = 1e-5;
 
@@ -67,13 +66,6 @@ class RoutingLine {
     std::vector<double> yaw;
 };
 
-struct Outlook {
-    int rows;
-    int cols;
-    int colors;
-    std::vector<float> data;
-};
-
 class TicToc {
   public:
     TicToc(void) { tic(); }
@@ -103,6 +95,21 @@ class Random {
   public:
     static double uniform(double _min, double _max);
     static double normal(double _mean, double _std);
+};
+
+class PeriodicLoop {
+  public:
+    explicit PeriodicLoop(std::chrono::milliseconds period)
+        : period_(period), next_(std::chrono::steady_clock::now() + period_) {}
+
+    void wait() {
+        std::this_thread::sleep_until(next_);
+        next_ += period_;
+    }
+
+  private:
+    std::chrono::milliseconds period_;
+    std::chrono::steady_clock::time_point next_;
 };
 
 namespace utils {
@@ -246,20 +253,12 @@ class TicToc {
   private:
     std::chrono::time_point<std::chrono::system_clock> start, end;
 };
+
+std::string get_time_str(bool keep_ms = true);
 std::vector<RoutingLine> get_sub_routing_lines(const std::vector<RoutingLine>& routing_lines,
                                                int start_idx);
 Eigen::Matrix3Xd get_cur_obstacle_states(const std::vector<RoutingLine>& routing_lines,
                                          int time_index);
-bool imread(std::string filename, Outlook& outlook);
-void imshow(const Outlook& out, const std::vector<double>& state, const std::vector<double>& para);
-void plot_vehicle(const Outlook& out, const Eigen::Vector4d& state, const Eigen::Vector2d& para,
-                  ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
-void plot_vehicle(const Outlook& out, const Eigen::Vector3d& state, const Eigen::Vector2d& para,
-                  ReferencePoint ref_point = ReferencePoint::GravityCenter, double wb = 0.0);
-void plot_obstacle_boundary(const Eigen::Vector4d& ego_state,
-                            const Eigen::Matrix3Xd& obstacles_info,
-                            const Eigen::Vector3d& obstacle_attribute, double wheelbase,
-                            ReferencePoint reference_point = ReferencePoint::GravityCenter);
 
 Eigen::Vector4d kinematic_propagate(const Eigen::Vector4d& cur_x, const Eigen::Vector2d& cur_u,
                                     double dt, double wheelbase,
@@ -282,6 +281,5 @@ Eigen::Vector2d ellipsoid_safety_margin_derivatives(const Eigen::Vector2d& pnt,
                                                     const Eigen::Vector2d& ellipse_ab);
 Eigen::MatrixX4d get_boundary(const Eigen::MatrixX4d& refline, double width);
 std::vector<std::vector<double>> get_closed_curve(const Eigen::MatrixX4d& refline);
-}  // namespace utils
 
-#endif
+}  // namespace utils

@@ -33,7 +33,6 @@ iteration:
   accept_step_threshold: 0.5
 
 vehicle:
-  reference_point: "rear_center"
   target_velocity: 8
   wheelbase: 2.8
   width: 2
@@ -59,7 +58,3 @@ initial_condition:
   - [30, 0, 3.0, 0]
   - [35, 3.6, 5, 0]
   - [15, 3.6, 2.5, 0]
-
-visualization:
-  y_lim: [-5, 13]
-  show_obstacle_boundary: true
