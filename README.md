@@ -1,10 +1,3 @@
-<!--
- * @Author: puyu <yuu.pu@foxmail.com>
- * @Date: 2024-08-23 00:52:15
- * @LastEditTime: 2024-12-14 20:43:34
- * @FilePath: /toy-example-of-iLQR/README.md
- * Copyright 2024 puyu, All Rights Reserved.
--->
 # toy-example-of-iLQR
 This repository implements an **C**onstrained **I**terative **L**inear **Q**uadratic **R**egulator (**CILQR**) algorithm that incorporates constraints in the environment for on-road autonomous motion planning. For more information, see [LQR与iLQR：从理论到实践【详细】](https://zhuanlan.zhihu.com/p/715102938)
 
@@ -12,11 +5,16 @@ This repository implements an **C**onstrained **I**terative **L**inear **Q**uadr
   <img src="./images/scenario_two_straight.gif" width="520"/>
 </div>
 
+
+## What's new✨
+
+Use foxglove studio to provide better visualization and data playback. For more information, see [foxglove_guide.md](./foxglove_guide.md). [![Watch the demo](./images/demo.png)](./images/screenshot.mp4)
+
+
 ## 1. Prerequisites
 
 - Tested on WSL2 Ubuntu 20.04🐧
-- Python >= 3.6.10, matplotlib, numpy
-- Other dependencies: [fmt](https://github.com/fmtlib/fmt), [yamp-cpp](https://github.com/jbeder/yaml-cpp), [spdlog](https://github.com/gabime/spdlog)
+- Other dependencies: [yamp-cpp](https://github.com/jbeder/yaml-cpp), [spdlog](https://github.com/gabime/spdlog)
 
 ## 2. Build
 
